@@ -132,7 +132,7 @@ export default function AccountsPage() {
                     >
                       수정
                     </button>
-                    {a.is_active && (
+                    {a.is_active ? (
                       <button
                         onClick={async () => {
                           if (!confirm('비활성화하시겠습니까?')) return;
@@ -145,6 +145,24 @@ export default function AccountsPage() {
                         className="text-red-500 hover:underline text-xs"
                       >
                         비활성화
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!confirm('활성화하시겠습니까?')) return;
+                          await fetch(
+                            `/api/companies/${company.id}/accounts/${a.id}`,
+                            {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ is_active: true }),
+                            }
+                          );
+                          fetchAccounts();
+                        }}
+                        className="text-green-600 hover:underline text-xs"
+                      >
+                        활성화
                       </button>
                     )}
                   </td>

@@ -28,6 +28,7 @@ export async function GET(
   const txIds = (allTx || []).map((t) => t.id);
 
   let confirmedCount = 0;
+  let classifiedTxCount = 0;
   let ruleCount = 0;
   let aiCount = 0;
   let totalConfidence = 0;
@@ -39,7 +40,9 @@ export async function GET(
       .select('*')
       .in('transaction_id', txIds);
 
+    const classifiedTxIds = new Set<string>();
     (results || []).forEach((r) => {
+      classifiedTxIds.add(r.transaction_id);
       if (r.is_confirmed) confirmedCount++;
       if (r.method === 'rule') ruleCount++;
       if (r.method === 'ai') aiCount++;
@@ -48,9 +51,10 @@ export async function GET(
         confidenceCount++;
       }
     });
+    classifiedTxCount = classifiedTxIds.size;
   }
 
-  const confirmationRate = txIds.length > 0 ? Math.round((confirmedCount / txIds.length) * 100) : 0;
+  const confirmationRate = txIds.length > 0 ? Math.round((classifiedTxCount / txIds.length) * 100) : 0;
   const avgConfidence = confidenceCount > 0 ? Math.round((totalConfidence / confidenceCount) * 100) : 0;
 
   const { data: topAccountsRaw } = await client

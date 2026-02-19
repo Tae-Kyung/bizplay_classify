@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, verifyCompanyMembership } from '@/lib/supabase/api-client';
 import { z } from 'zod';
 
+const deleteTransactionsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+});
+
 const createTransactionSchema = z.object({
   merchant_name: z.string().min(1, '가맹점명을 입력하세요'),
   mcc_code: z.string().optional(),
@@ -35,6 +39,32 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ companyId: string }> }
+) {
+  const { companyId } = await params;
+  const { user, client } = await getAuthenticatedClient();
+  if (!user || !client) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyCompanyMembership(user.id, companyId)))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = await request.json();
+  const parsed = deleteTransactionsSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { error, count } = await client
+    .from('transactions')
+    .delete({ count: 'exact' })
+    .in('id', parsed.data.ids)
+    .eq('company_id', companyId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ deleted: count });
 }
 
 export async function GET(

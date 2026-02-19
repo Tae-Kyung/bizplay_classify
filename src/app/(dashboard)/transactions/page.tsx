@@ -22,6 +22,8 @@ export default function TransactionsPage() {
   const [dateTo, setDateTo] = useState('');
   const [selectedTx, setSelectedTx] = useState<any>(null);
   const [classifyingIds, setClassifyingIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     if (!company) return;
@@ -82,6 +84,37 @@ export default function TransactionsPage() {
     setSelectedTx(null);
   };
 
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}건의 거래를 삭제하시겠습니까?`)) return;
+    setDeleting(true);
+    await fetch(`/api/companies/${company!.id}/transactions`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selectedIds) }),
+    });
+    setSelectedIds(new Set());
+    setDeleting(false);
+    fetchTransactions();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === transactions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(transactions.map((tx) => tx.id)));
+    }
+  };
+
   const totalPages = Math.ceil(total / perPage);
 
   if (!company) return <div className="text-gray-400">회사를 선택하세요</div>;
@@ -135,11 +168,41 @@ export default function TransactionsPage() {
         />
       </div>
 
+      {/* Bulk Actions */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-4 bg-blue-50 px-4 py-2 rounded-lg">
+          <span className="text-sm text-blue-700 font-medium">
+            {selectedIds.size}건 선택됨
+          </span>
+          <button
+            onClick={deleteSelected}
+            disabled={deleting}
+            className="px-3 py-1 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleting ? '삭제 중...' : '선택 삭제'}
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white"
+          >
+            선택 해제
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-left text-gray-500">
+              <th className="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                  onChange={toggleSelectAll}
+                  className="rounded"
+                />
+              </th>
               <th className="px-4 py-3">거래일</th>
               <th className="px-4 py-3">가맹점명</th>
               <th className="px-4 py-3 text-right">금액</th>
@@ -153,7 +216,7 @@ export default function TransactionsPage() {
           <tbody>
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                   거래 내역이 없습니다
                 </td>
               </tr>
@@ -167,6 +230,14 @@ export default function TransactionsPage() {
                     className="border-t hover:bg-gray-50 cursor-pointer"
                     onClick={() => setSelectedTx(tx)}
                   >
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(tx.id)}
+                        onChange={() => toggleSelect(tx.id)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {tx.transaction_date || '-'}
                     </td>

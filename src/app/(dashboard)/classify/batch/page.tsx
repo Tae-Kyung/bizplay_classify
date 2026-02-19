@@ -110,6 +110,30 @@ export default function BatchClassifyPage() {
             </div>
           )}
         </div>
+        <div className="mt-3 text-right">
+          <button
+            onClick={() => {
+              const csv = [
+                'merchant_name,mcc_code,amount,transaction_date,description,card_type',
+                '스타벅스 강남점,5814,15000,2026-02-15,팀 회의 커피,corporate',
+                '교보문고 광화문점,5942,35000,2026-02-14,업무 참고서적 구매,corporate',
+                'GS칼텍스 서초주유소,5541,80000,2026-02-13,업무용 차량 주유,corporate',
+                '대한항공,3000,450000,2026-02-11,출장 항공권,corporate',
+                '피자헛 역삼점,5812,120000,2026-02-05,팀 회식,corporate',
+              ].join('\n');
+              const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'sample-transactions.csv';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-xs text-blue-600 hover:underline"
+          >
+            샘플 CSV 다운로드
+          </button>
+        </div>
       </div>
 
       {/* Preview */}

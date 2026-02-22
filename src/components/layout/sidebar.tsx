@@ -67,7 +67,7 @@ export function Sidebar() {
         {companies.length > 0 && (
           <div className="mt-2 flex gap-1">
             <select
-              className="flex-1 bg-gray-800 text-sm rounded px-2 py-1 border border-gray-600"
+              className="flex-1 bg-white text-gray-900 text-sm rounded px-2 py-1 border border-gray-400"
               value={company?.id || ''}
               onChange={(e) => {
                 const c = companies.find((c) => c.id === e.target.value);

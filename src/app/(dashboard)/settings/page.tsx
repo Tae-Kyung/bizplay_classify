@@ -21,6 +21,15 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // AI 프롬프트 개선 상태
+  const [improving, setImproving] = useState(false);
+  const [suggestion, setSuggestion] = useState<{
+    suggested_prompt: string;
+    reasoning: string;
+    analyzed_count: number;
+  } | null>(null);
+  const [improveLimit, setImproveLimit] = useState(100);
+
   const fetchSettings = useCallback(async () => {
     if (!company) return;
     setLoading(true);
@@ -77,6 +86,36 @@ export default function SettingsPage() {
     setDefaultModelId(DEFAULT_MODEL_ID);
     setTemperature(0);
     setMessage(null);
+  };
+
+  const handleImprove = async () => {
+    if (!company) return;
+    setImproving(true);
+    setSuggestion(null);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/companies/${company.id}/settings/prompts/improve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: improveLimit }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '프롬프트 개선 실패');
+      }
+      setSuggestion(data);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setImproving(false);
+    }
+  };
+
+  const handleApplySuggestion = () => {
+    if (!suggestion) return;
+    setSystemPrompt(suggestion.suggested_prompt);
+    setSuggestion(null);
+    setMessage({ type: 'success', text: '제안된 프롬프트가 적용되었습니다. "저장" 버튼을 눌러 확정하세요.' });
   };
 
   if (!company) return <div className="text-gray-400">회사를 선택하세요</div>;
@@ -181,9 +220,82 @@ export default function SettingsPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* 시스템 프롬프트 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              시스템 프롬프트
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                시스템 프롬프트
+              </label>
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={improveLimit}
+                    onChange={(e) => setImproveLimit(Number(e.target.value))}
+                    disabled={improving}
+                    className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-600"
+                  >
+                    <option value={50}>최근 50건</option>
+                    <option value={100}>최근 100건</option>
+                    <option value={200}>최근 200건</option>
+                    <option value={500}>최근 500건</option>
+                  </select>
+                  <button
+                    onClick={handleImprove}
+                    disabled={improving}
+                    className="px-3 py-1 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {improving ? '분석 중...' : 'AI 프롬프트 개선'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* AI 개선 제안 UI */}
+            {improving && (
+              <div className="mb-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-purple-700">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  확정된 거래 내역을 분석하고 프롬프트를 개선하고 있습니다...
+                </div>
+              </div>
+            )}
+
+            {suggestion && (
+              <div className="mb-3 border border-purple-300 rounded-lg overflow-hidden">
+                <div className="bg-purple-50 px-4 py-3 border-b border-purple-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-purple-800">
+                      AI 개선 제안 (분석 거래: {suggestion.analyzed_count}건)
+                    </h4>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleApplySuggestion}
+                        className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                      >
+                        적용
+                      </button>
+                      <button
+                        onClick={() => setSuggestion(null)}
+                        className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-purple-700 whitespace-pre-line">
+                    {suggestion.reasoning}
+                  </p>
+                </div>
+                <textarea
+                  value={suggestion.suggested_prompt}
+                  readOnly
+                  rows={12}
+                  className="w-full px-3 py-2 text-sm font-mono bg-white text-gray-700 resize-y border-0 focus:ring-0"
+                />
+              </div>
+            )}
+
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}

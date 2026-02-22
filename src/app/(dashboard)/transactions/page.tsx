@@ -24,6 +24,8 @@ export default function TransactionsPage() {
   const [classifyingIds, setClassifyingIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set());
+  const [bulkConfirming, setBulkConfirming] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     if (!company) return;
@@ -95,6 +97,46 @@ export default function TransactionsPage() {
     });
     setSelectedIds(new Set());
     setDeleting(false);
+    fetchTransactions();
+  };
+
+  const confirmSingle = async (tx: any) => {
+    const result = getLatestResult(tx);
+    if (!result) return;
+    setConfirmingIds((prev) => new Set(prev).add(tx.id));
+    await fetch(`/api/classifications/${result.id}/confirm`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_confirmed: true }),
+    });
+    setConfirmingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tx.id);
+      return next;
+    });
+    fetchTransactions();
+  };
+
+  const confirmSelected = async () => {
+    const toConfirm = transactions.filter(
+      (tx) => selectedIds.has(tx.id) && getStatus(tx) === 'classified'
+    );
+    if (toConfirm.length === 0) return;
+    if (!confirm(`선택한 ${toConfirm.length}건의 분류 결과를 확정하시겠습니까?`)) return;
+    setBulkConfirming(true);
+    await Promise.allSettled(
+      toConfirm.map((tx) => {
+        const result = getLatestResult(tx);
+        if (!result) return Promise.resolve();
+        return fetch(`/api/classifications/${result.id}/confirm`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_confirmed: true }),
+        });
+      })
+    );
+    setBulkConfirming(false);
+    setSelectedIds(new Set());
     fetchTransactions();
   };
 
@@ -174,6 +216,15 @@ export default function TransactionsPage() {
           <span className="text-sm text-blue-700 font-medium">
             {selectedIds.size}건 선택됨
           </span>
+          {transactions.some((tx) => selectedIds.has(tx.id) && getStatus(tx) === 'classified') && (
+            <button
+              onClick={confirmSelected}
+              disabled={bulkConfirming}
+              className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {bulkConfirming ? '확정 중...' : '선택 확정'}
+            </button>
+          )}
           <button
             onClick={deleteSelected}
             disabled={deleting}
@@ -285,6 +336,18 @@ export default function TransactionsPage() {
                           className="text-blue-600 hover:underline text-xs disabled:opacity-50"
                         >
                           {classifyingIds.has(tx.id) ? '분류 중...' : '분류'}
+                        </button>
+                      )}
+                      {status === 'classified' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            confirmSingle(tx);
+                          }}
+                          disabled={confirmingIds.has(tx.id)}
+                          className="text-green-600 hover:underline text-xs disabled:opacity-50"
+                        >
+                          {confirmingIds.has(tx.id) ? '확정 중...' : '확정'}
                         </button>
                       )}
                     </td>

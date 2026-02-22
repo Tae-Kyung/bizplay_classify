@@ -96,13 +96,13 @@ export function Sidebar() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="회사명"
-              className="w-full bg-gray-800 text-sm rounded px-2 py-1.5 border border-gray-600 text-white placeholder-gray-500"
+              className="w-full bg-white text-gray-900 text-sm rounded px-2 py-1.5 border border-gray-400 placeholder-gray-400"
             />
             <input
               value={newBizNum}
               onChange={(e) => setNewBizNum(e.target.value)}
               placeholder="사업자번호 (선택)"
-              className="w-full bg-gray-800 text-sm rounded px-2 py-1.5 border border-gray-600 text-white placeholder-gray-500"
+              className="w-full bg-white text-gray-900 text-sm rounded px-2 py-1.5 border border-gray-400 placeholder-gray-400"
             />
             {createError && (
               <p className="text-xs text-red-400">{createError}</p>

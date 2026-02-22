@@ -12,7 +12,7 @@ interface ConfirmedExample {
   account_name: string;
 }
 
-/** DB에서 회사별 커스텀 프롬프트 조회 (없으면 null) */
+/** DB에서 회사별 프롬프트 조회 */
 export async function getCompanyPrompts(companyId: string) {
   const client = await createServiceClient();
   const { data } = await client
@@ -21,7 +21,10 @@ export async function getCompanyPrompts(companyId: string) {
     .eq('company_id', companyId)
     .single();
 
-  return data ?? null;
+  if (!data) {
+    throw new Error('프롬프트 설정을 찾을 수 없습니다. 회사 설정을 확인하세요.');
+  }
+  return data;
 }
 
 async function callAnthropic(
@@ -85,7 +88,7 @@ export async function classifyWithAI(
   recentExamples: ConfirmedExample[],
   companyId: string,
   selectedModelId?: string,
-  preloadedPrompts?: { system_prompt: string | null; user_prompt: string | null } | null
+  preloadedPrompts?: { system_prompt: string; user_prompt: string }
 ): Promise<ClassifyResult> {
   const baseConfig = getModelConfig(selectedModelId || DEFAULT_MODEL_ID);
   if (!baseConfig) {
@@ -93,17 +96,15 @@ export async function classifyWithAI(
   }
   const modelConfig = resolveModelConfig(baseConfig);
 
-  // 커스텀 프롬프트: preloaded가 있으면 사용, 없으면 DB 조회
-  const customPrompts = preloadedPrompts !== undefined
-    ? preloadedPrompts
-    : await getCompanyPrompts(companyId);
+  // preloaded가 있으면 사용, 없으면 DB 조회
+  const prompts = preloadedPrompts ?? await getCompanyPrompts(companyId);
 
   const { systemPrompt, userPrompt } = buildPrompts({
     transaction,
     accounts,
     recentExamples,
-    customSystemPrompt: customPrompts?.system_prompt,
-    customUserPrompt: customPrompts?.user_prompt,
+    systemPromptTemplate: prompts.system_prompt,
+    userPromptTemplate: prompts.user_prompt,
   });
 
   let responseText: string;

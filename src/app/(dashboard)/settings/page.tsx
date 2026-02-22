@@ -24,8 +24,8 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`/api/companies/${company.id}/settings/prompts`);
       const data = await res.json();
-      setSystemPrompt(data.settings.system_prompt ?? '');
-      setUserPrompt(data.settings.user_prompt ?? '');
+      setSystemPrompt(data.settings.system_prompt);
+      setUserPrompt(data.settings.user_prompt);
       setIsAdmin(data.is_admin);
     } catch {
       setMessage({ type: 'error', text: '설정을 불러오지 못했습니다' });
@@ -47,8 +47,8 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_prompt: systemPrompt || null,
-          user_prompt: userPrompt || null,
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
         }),
       });
       if (!res.ok) {
@@ -65,8 +65,8 @@ export default function SettingsPage() {
 
   const handleReset = () => {
     if (!confirm('기본 프롬프트로 초기화하시겠습니까?')) return;
-    setSystemPrompt('');
-    setUserPrompt('');
+    setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+    setUserPrompt(DEFAULT_USER_PROMPT);
     setMessage(null);
   };
 
@@ -135,13 +135,12 @@ export default function SettingsPage() {
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder={DEFAULT_SYSTEM_PROMPT}
               disabled={!isAdmin}
               rows={12}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono resize-y disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="mt-1 text-xs text-gray-400">
-              비워두면 기본 프롬프트가 사용됩니다. JSON 응답 형식 지시문은 항상 자동 추가됩니다.
+              JSON 응답 형식 지시문은 항상 자동 추가됩니다.
             </p>
           </div>
 
@@ -153,14 +152,10 @@ export default function SettingsPage() {
             <textarea
               value={userPrompt}
               onChange={(e) => setUserPrompt(e.target.value)}
-              placeholder={DEFAULT_USER_PROMPT}
               disabled={!isAdmin}
               rows={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono resize-y disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <p className="mt-1 text-xs text-gray-400">
-              비워두면 기본 프롬프트가 사용됩니다.
-            </p>
           </div>
         </div>
 
@@ -207,10 +202,10 @@ export default function SettingsPage() {
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-amber-800 mb-2">참고</h3>
             <ul className="text-xs text-amber-700 space-y-1.5">
-              <li>- 프롬프트를 비워두면 기본값이 사용됩니다</li>
+              <li>- &quot;기본값으로 초기화&quot; 버튼으로 원래 프롬프트를 복원할 수 있습니다</li>
               <li>- JSON 응답 형식 지시문은 자동으로 추가되므로 별도로 작성하지 않아도 됩니다</li>
               <li>- 플레이스홀더는 분류 시점에 실제 값으로 치환됩니다</li>
-              <li>- 프롬프트 변경은 즉시 반영됩니다</li>
+              <li>- 프롬프트 변경은 저장 후 즉시 반영됩니다</li>
             </ul>
           </div>
         </div>

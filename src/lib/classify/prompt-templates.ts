@@ -1,8 +1,4 @@
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  DEFAULT_USER_PROMPT,
-  JSON_FORMAT_INSTRUCTION,
-} from './prompt-defaults';
+import { JSON_FORMAT_INSTRUCTION } from './prompt-defaults';
 import type { Account, TransactionInput } from '@/types';
 
 interface ConfirmedExample {
@@ -17,8 +13,8 @@ interface BuildPromptsParams {
   transaction: TransactionInput;
   accounts: Account[];
   recentExamples: ConfirmedExample[];
-  customSystemPrompt?: string | null;
-  customUserPrompt?: string | null;
+  systemPromptTemplate: string;
+  userPromptTemplate: string;
 }
 
 /**
@@ -34,15 +30,15 @@ function resolveTemplate(template: string, vars: Record<string, string>): string
 
 /**
  * 시스템/사용자 프롬프트를 빌드
- * - 커스텀 프롬프트가 있으면 사용, 없으면 기본값
+ * - DB에 저장된 프롬프트 템플릿을 사용
  * - JSON 응답 형식 지시문은 항상 시스템 프롬프트 끝에 자동 append
  */
 export function buildPrompts({
   transaction,
   accounts,
   recentExamples,
-  customSystemPrompt,
-  customUserPrompt,
+  systemPromptTemplate,
+  userPromptTemplate,
 }: BuildPromptsParams): { systemPrompt: string; userPrompt: string } {
   const accountsList = accounts
     .filter((a) => a.is_active)
@@ -79,11 +75,8 @@ export function buildPrompts({
     description: transaction.description || '없음',
   };
 
-  const systemTemplate = customSystemPrompt || DEFAULT_SYSTEM_PROMPT;
-  const userTemplate = customUserPrompt || DEFAULT_USER_PROMPT;
-
-  const systemPrompt = resolveTemplate(systemTemplate, systemVars) + JSON_FORMAT_INSTRUCTION;
-  const userPrompt = resolveTemplate(userTemplate, userVars);
+  const systemPrompt = resolveTemplate(systemPromptTemplate, systemVars) + JSON_FORMAT_INSTRUCTION;
+  const userPrompt = resolveTemplate(userPromptTemplate, userVars);
 
   return { systemPrompt, userPrompt };
 }

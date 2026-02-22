@@ -7,8 +7,8 @@ import {
 import { z } from 'zod';
 
 const updateSchema = z.object({
-  system_prompt: z.string().nullable(),
-  user_prompt: z.string().nullable(),
+  system_prompt: z.string().min(1, '시스템 프롬프트는 필수입니다'),
+  user_prompt: z.string().min(1, '사용자 프롬프트는 필수입니다'),
 });
 
 export async function GET(
@@ -31,7 +31,7 @@ export async function GET(
   const isAdmin = await verifyCompanyAdmin(user.id, companyId);
 
   return NextResponse.json({
-    settings: data ?? { system_prompt: null, user_prompt: null },
+    settings: data,
     is_admin: isAdmin,
   });
 }

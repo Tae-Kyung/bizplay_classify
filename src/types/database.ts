@@ -69,8 +69,8 @@ export interface ClassificationResult {
 export interface CompanyPromptSettings {
   id: string;
   company_id: string;
-  system_prompt: string | null;
-  user_prompt: string | null;
+  system_prompt: string;
+  user_prompt: string;
   updated_by: string | null;
   updated_at: string;
 }

@@ -8,11 +8,14 @@ import {
   DEFAULT_USER_PROMPT,
   PLACEHOLDERS,
 } from '@/lib/classify/prompt-defaults';
+import { AI_MODELS, DEFAULT_MODEL_ID } from '@/lib/models/config';
 
 export default function SettingsPage() {
   const { company } = useCompany();
   const [systemPrompt, setSystemPrompt] = useState('');
   const [userPrompt, setUserPrompt] = useState('');
+  const [defaultModelId, setDefaultModelId] = useState(DEFAULT_MODEL_ID);
+  const [temperature, setTemperature] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,6 +29,8 @@ export default function SettingsPage() {
       const data = await res.json();
       setSystemPrompt(data.settings.system_prompt);
       setUserPrompt(data.settings.user_prompt);
+      setDefaultModelId(data.settings.default_model_id || DEFAULT_MODEL_ID);
+      setTemperature(data.settings.temperature ?? 0);
       setIsAdmin(data.is_admin);
     } catch {
       setMessage({ type: 'error', text: '설정을 불러오지 못했습니다' });
@@ -49,13 +54,15 @@ export default function SettingsPage() {
         body: JSON.stringify({
           system_prompt: systemPrompt,
           user_prompt: userPrompt,
+          default_model_id: defaultModelId,
+          temperature,
         }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || '저장 실패');
       }
-      setMessage({ type: 'success', text: '프롬프트가 저장되었습니다' });
+      setMessage({ type: 'success', text: '설정이 저장되었습니다' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -67,6 +74,8 @@ export default function SettingsPage() {
     if (!confirm('기본 프롬프트로 초기화하시겠습니까?')) return;
     setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
     setUserPrompt(DEFAULT_USER_PROMPT);
+    setDefaultModelId(DEFAULT_MODEL_ID);
+    setTemperature(0);
     setMessage(null);
   };
 
@@ -75,7 +84,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div>
-        <Header title="프롬프트 설정" />
+        <Header title="AI 분류 설정" />
         <div className="text-gray-400">로딩 중...</div>
       </div>
     );
@@ -87,8 +96,8 @@ export default function SettingsPage() {
   return (
     <div>
       <Header
-        title="프롬프트 설정"
-        description="AI 분류에 사용되는 프롬프트를 커스터마이즈합니다"
+        title="AI 분류 설정"
+        description="AI 분류에 사용되는 모델과 프롬프트를 설정합니다"
         action={
           isAdmin ? (
             <div className="flex gap-2">
@@ -123,6 +132,49 @@ export default function SettingsPage() {
           {message.text}
         </div>
       )}
+
+      {/* 모델 설정 섹션 */}
+      <div className="bg-white rounded-xl shadow p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-800 mb-4">모델 설정</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              AI 모델
+            </label>
+            <select
+              value={defaultModelId}
+              onChange={(e) => setDefaultModelId(e.target.value)}
+              disabled={!isAdmin}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {AI_MODELS.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name} — {model.description}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Temperature: {temperature.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              disabled={!isAdmin}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+            />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>0.0 — 일관된 결과</span>
+              <span>1.0 — 다양한 결과</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 프롬프트 편집 영역 */}

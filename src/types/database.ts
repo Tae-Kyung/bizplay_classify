@@ -71,6 +71,8 @@ export interface CompanyPromptSettings {
   company_id: string;
   system_prompt: string;
   user_prompt: string;
+  default_model_id: string;
+  temperature: number;
   updated_by: string | null;
   updated_at: string;
 }

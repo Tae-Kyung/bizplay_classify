@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { useCompany } from '@/components/providers/company-provider';
 import { Header } from '@/components/layout/header';
-import { DEFAULT_MODEL_ID } from '@/lib/models/config';
 import Papa from 'papaparse';
 import Link from 'next/link';
 import type { BatchClassifyResult } from '@/types';
@@ -44,10 +43,8 @@ export default function BatchClassifyPage() {
     setError('');
     setResult(null);
 
-    const modelId = localStorage.getItem('selectedModelId') || DEFAULT_MODEL_ID;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('model_id', modelId);
 
     try {
       const res = await fetch(`/api/companies/${company.id}/classify/batch`, {

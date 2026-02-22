@@ -12,12 +12,12 @@ interface ConfirmedExample {
   account_name: string;
 }
 
-/** DB에서 회사별 프롬프트 조회 */
+/** DB에서 회사별 프롬프트 + 모델 설정 조회 */
 export async function getCompanyPrompts(companyId: string) {
   const client = await createServiceClient();
   const { data } = await client
     .from('company_prompt_settings')
-    .select('system_prompt, user_prompt')
+    .select('system_prompt, user_prompt, default_model_id, temperature')
     .eq('company_id', companyId)
     .single();
 
@@ -30,12 +30,13 @@ export async function getCompanyPrompts(companyId: string) {
 async function callAnthropic(
   systemPrompt: string,
   userPrompt: string,
-  modelId: string
+  modelId: string,
+  temperature: number
 ): Promise<string> {
   const message = await anthropic.messages.create({
     model: modelId,
     max_tokens: 1024,
-    temperature: 0,
+    temperature,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
@@ -52,7 +53,8 @@ async function callOpenAICompatible(
   userPrompt: string,
   apiUrl: string,
   apiKeyHeader: string,
-  apiKey: string
+  apiKey: string,
+  temperature: number
 ): Promise<string> {
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -62,6 +64,7 @@ async function callOpenAICompatible(
     },
     body: JSON.stringify({
       stream: false,
+      temperature,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -87,17 +90,19 @@ export async function classifyWithAI(
   accounts: Account[],
   recentExamples: ConfirmedExample[],
   companyId: string,
-  selectedModelId?: string,
-  preloadedPrompts?: { system_prompt: string; user_prompt: string }
+  preloadedPrompts?: { system_prompt: string; user_prompt: string; default_model_id: string; temperature: number }
 ): Promise<ClassifyResult> {
-  const baseConfig = getModelConfig(selectedModelId || DEFAULT_MODEL_ID);
-  if (!baseConfig) {
-    throw new Error(`알 수 없는 모델: ${selectedModelId}`);
-  }
-  const modelConfig = resolveModelConfig(baseConfig);
-
   // preloaded가 있으면 사용, 없으면 DB 조회
   const prompts = preloadedPrompts ?? await getCompanyPrompts(companyId);
+
+  const modelId = prompts.default_model_id || DEFAULT_MODEL_ID;
+  const temperature = prompts.temperature ?? 0;
+
+  const baseConfig = getModelConfig(modelId);
+  if (!baseConfig) {
+    throw new Error(`알 수 없는 모델: ${modelId}`);
+  }
+  const modelConfig = resolveModelConfig(baseConfig);
 
   const { systemPrompt, userPrompt } = buildPrompts({
     transaction,
@@ -113,7 +118,8 @@ export async function classifyWithAI(
     responseText = await callAnthropic(
       systemPrompt,
       userPrompt,
-      modelConfig.modelId || 'claude-sonnet-4-20250514'
+      modelConfig.modelId || 'claude-sonnet-4-20250514',
+      temperature
     );
   } else {
     if (!modelConfig.apiUrl || !modelConfig.apiKey) {
@@ -124,7 +130,8 @@ export async function classifyWithAI(
       userPrompt,
       modelConfig.apiUrl,
       modelConfig.apiKeyHeader || 'x-api-key',
-      modelConfig.apiKey
+      modelConfig.apiKey,
+      temperature
     );
   }
 

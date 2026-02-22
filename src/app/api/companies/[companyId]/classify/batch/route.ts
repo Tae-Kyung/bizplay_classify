@@ -26,7 +26,6 @@ export async function POST(
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
-  const modelId = (formData.get('model_id') as string) || undefined;
   if (!file) return NextResponse.json({ error: 'CSV 파일을 업로드하세요' }, { status: 400 });
 
   const text = await file.text();
@@ -130,7 +129,7 @@ export async function POST(
       }
 
       try {
-        const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, modelId, customPrompts);
+        const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, customPrompts);
         const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
         if (matchedAccount) {
           await client.from('classification_results').insert({

@@ -9,6 +9,8 @@ import { z } from 'zod';
 const updateSchema = z.object({
   system_prompt: z.string().min(1, '시스템 프롬프트는 필수입니다'),
   user_prompt: z.string().min(1, '사용자 프롬프트는 필수입니다'),
+  default_model_id: z.string().min(1).optional(),
+  temperature: z.number().min(0).max(1).optional(),
 });
 
 export async function GET(
@@ -52,21 +54,22 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { system_prompt, user_prompt } = parsed.data;
+  const { system_prompt, user_prompt, default_model_id, temperature } = parsed.data;
 
   // upsert: 없으면 insert, 있으면 update
+  const upsertData: Record<string, unknown> = {
+    company_id: companyId,
+    system_prompt,
+    user_prompt,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  };
+  if (default_model_id !== undefined) upsertData.default_model_id = default_model_id;
+  if (temperature !== undefined) upsertData.temperature = temperature;
+
   const { data, error } = await client
     .from('company_prompt_settings')
-    .upsert(
-      {
-        company_id: companyId,
-        system_prompt,
-        user_prompt,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'company_id' }
-    )
+    .upsert(upsertData, { onConflict: 'company_id' })
     .select()
     .single();
 

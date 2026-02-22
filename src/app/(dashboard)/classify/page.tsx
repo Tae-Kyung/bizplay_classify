@@ -6,7 +6,7 @@ import { Header } from '@/components/layout/header';
 import { AccountSelect } from '@/components/ui/account-select';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { MethodTag } from '@/components/ui/method-tag';
-import { AI_MODELS, DEFAULT_MODEL_ID } from '@/lib/models/config';
+import { AI_MODELS } from '@/lib/models/config';
 import type { Account } from '@/types';
 
 export default function ClassifyPage() {
@@ -28,16 +28,20 @@ export default function ClassifyPage() {
   const [currentModelName, setCurrentModelName] = useState('');
 
   useEffect(() => {
-    const savedId = localStorage.getItem('selectedModelId') || DEFAULT_MODEL_ID;
-    const model = AI_MODELS.find((m) => m.id === savedId);
-    setCurrentModelName(model?.name || '');
-  }, []);
-
-  useEffect(() => {
     if (!company) return;
     fetch(`/api/companies/${company.id}/accounts`)
       .then((r) => r.json())
       .then((d) => setAccounts(Array.isArray(d) ? d : []));
+
+    // 설정에서 현재 모델명 가져오기
+    fetch(`/api/companies/${company.id}/settings/prompts`)
+      .then((r) => r.json())
+      .then((d) => {
+        const modelId = d.settings?.default_model_id;
+        const model = AI_MODELS.find((m) => m.id === modelId);
+        setCurrentModelName(model?.name || '');
+      })
+      .catch(() => {});
   }, [company]);
 
   const handleClassify = async (e: React.FormEvent) => {
@@ -48,7 +52,6 @@ export default function ClassifyPage() {
     setShowEdit(false);
     setClassifying(true);
 
-    const modelId = localStorage.getItem('selectedModelId') || DEFAULT_MODEL_ID;
     const res = await fetch(`/api/companies/${company.id}/classify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,7 +62,6 @@ export default function ClassifyPage() {
         transaction_date: txDate || undefined,
         description: description || undefined,
         save_transaction: saveTransaction,
-        model_id: modelId,
       }),
     });
 

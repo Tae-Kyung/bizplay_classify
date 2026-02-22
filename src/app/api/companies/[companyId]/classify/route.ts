@@ -13,7 +13,6 @@ const classifySchema = z.object({
   transaction_date: z.string().optional(),
   description: z.string().optional(),
   save_transaction: z.boolean().default(false),
-  model_id: z.string().optional(),
 });
 
 export async function POST(
@@ -168,7 +167,7 @@ export async function POST(
     }));
 
   try {
-    const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, parsed.data.model_id);
+    const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId);
 
     const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
     if (!matchedAccount) {

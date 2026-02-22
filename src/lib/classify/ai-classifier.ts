@@ -151,9 +151,16 @@ export async function classifyWithAI(
 
   let result: ClassifyResult;
   try {
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON found');
-    result = JSON.parse(jsonMatch[0]);
+    // 1) Try extracting from first markdown code block
+    const codeBlockMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      result = JSON.parse(codeBlockMatch[1]);
+    } else {
+      // 2) Fallback: find first flat JSON object
+      const jsonMatch = responseText.match(/\{[^{}]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found');
+      result = JSON.parse(jsonMatch[0]);
+    }
   } catch {
     throw new Error(`AI 응답 파싱 실패: ${responseText}`);
   }

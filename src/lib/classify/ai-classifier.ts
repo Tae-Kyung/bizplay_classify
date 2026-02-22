@@ -1,4 +1,5 @@
 import { anthropic } from '@/lib/claude/client';
+import { getModelConfig, resolveModelConfig, DEFAULT_MODEL_ID } from '@/lib/models/config';
 import type { Account, TransactionInput, ClassifyResult } from '@/types';
 
 interface ConfirmedExample {
@@ -9,11 +10,11 @@ interface ConfirmedExample {
   account_name: string;
 }
 
-export async function classifyWithAI(
+function buildPrompts(
   transaction: TransactionInput,
   accounts: Account[],
   recentExamples: ConfirmedExample[]
-): Promise<ClassifyResult> {
+) {
   const accountsList = accounts
     .filter((a) => a.is_active)
     .map((a) => ({
@@ -51,8 +52,16 @@ ${JSON.stringify(accountsList, null, 2)}${examplesText}
 - 거래일: ${transaction.transaction_date || '미상'}
 - 적요: ${transaction.description || '없음'}`;
 
+  return { systemPrompt, userPrompt };
+}
+
+async function callAnthropic(
+  systemPrompt: string,
+  userPrompt: string,
+  modelId: string
+): Promise<string> {
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelId,
     max_tokens: 1024,
     temperature: 0,
     system: systemPrompt,
@@ -63,15 +72,90 @@ ${JSON.stringify(accountsList, null, 2)}${examplesText}
   if (content.type !== 'text') {
     throw new Error('Unexpected response type from Claude API');
   }
+  return content.text;
+}
+
+async function callOpenAICompatible(
+  systemPrompt: string,
+  userPrompt: string,
+  apiUrl: string,
+  apiKeyHeader: string,
+  apiKey: string
+): Promise<string> {
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      [apiKeyHeader]: apiKey,
+    },
+    body: JSON.stringify({
+      stream: false,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API 호출 실패 (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) {
+    throw new Error('API 응답에서 텍스트를 찾을 수 없습니다');
+  }
+  return text;
+}
+
+export async function classifyWithAI(
+  transaction: TransactionInput,
+  accounts: Account[],
+  recentExamples: ConfirmedExample[],
+  selectedModelId?: string
+): Promise<ClassifyResult> {
+  const baseConfig = getModelConfig(selectedModelId || DEFAULT_MODEL_ID);
+  if (!baseConfig) {
+    throw new Error(`알 수 없는 모델: ${selectedModelId}`);
+  }
+  const modelConfig = resolveModelConfig(baseConfig);
+
+  const { systemPrompt, userPrompt } = buildPrompts(
+    transaction,
+    accounts,
+    recentExamples
+  );
+
+  let responseText: string;
+
+  if (modelConfig.provider === 'anthropic') {
+    responseText = await callAnthropic(
+      systemPrompt,
+      userPrompt,
+      modelConfig.modelId || 'claude-sonnet-4-20250514'
+    );
+  } else {
+    if (!modelConfig.apiUrl || !modelConfig.apiKey) {
+      throw new Error('EXAONE API 설정이 없습니다. .env.local에 EXAONE_API_URL과 EXAONE_API_KEY를 설정하세요.');
+    }
+    responseText = await callOpenAICompatible(
+      systemPrompt,
+      userPrompt,
+      modelConfig.apiUrl,
+      modelConfig.apiKeyHeader || 'x-api-key',
+      modelConfig.apiKey
+    );
+  }
 
   let result: ClassifyResult;
   try {
-    // Try to extract JSON from the response
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found');
     result = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new Error(`Failed to parse Claude response: ${content.text}`);
+    throw new Error(`AI 응답 파싱 실패: ${responseText}`);
   }
 
   // Validate that account_code exists in the company's accounts

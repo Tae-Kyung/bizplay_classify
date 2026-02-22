@@ -5,6 +5,7 @@ import { useCompany } from '@/components/providers/company-provider';
 import { Header } from '@/components/layout/header';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { AI_MODELS, DEFAULT_MODEL_ID } from '@/lib/models/config';
 import type { Company } from '@/types';
 
 export default function DashboardPage() {
@@ -93,6 +94,19 @@ export default function DashboardPage() {
 
 function DashboardContent({ companyId }: { companyId: string }) {
   const [stats, setStats] = useState<any>(null);
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL_ID);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedModelId');
+    if (saved && AI_MODELS.some((m) => m.id === saved)) {
+      setSelectedModel(saved);
+    }
+  }, []);
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    localStorage.setItem('selectedModelId', modelId);
+  };
 
   useEffect(() => {
     fetch(`/api/companies/${companyId}/stats`)
@@ -104,6 +118,40 @@ function DashboardContent({ companyId }: { companyId: string }) {
   return (
     <div>
       <Header title="대시보드" description="분류 현황 요약" />
+
+      {/* AI Model Selector */}
+      <div className="bg-white rounded-xl shadow p-6 mb-8">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">AI 분류 모델</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {AI_MODELS.map((model) => (
+            <button
+              key={model.id}
+              onClick={() => handleModelChange(model.id)}
+              className={`flex items-start gap-3 p-4 rounded-lg border-2 text-left transition-colors ${
+                selectedModel === model.id
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300 bg-white'
+              }`}
+            >
+              <div
+                className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                  selectedModel === model.id
+                    ? 'border-blue-600'
+                    : 'border-gray-300'
+                }`}
+              >
+                {selectedModel === model.id && (
+                  <div className="w-2 h-2 rounded-full bg-blue-600" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{model.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {!stats ? (
         <div className="text-gray-400">데이터를 불러오는 중...</div>

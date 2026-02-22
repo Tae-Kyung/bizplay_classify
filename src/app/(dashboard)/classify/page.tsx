@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/header';
 import { AccountSelect } from '@/components/ui/account-select';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { MethodTag } from '@/components/ui/method-tag';
+import { AI_MODELS, DEFAULT_MODEL_ID } from '@/lib/models/config';
 import type { Account } from '@/types';
 
 export default function ClassifyPage() {
@@ -24,6 +25,13 @@ export default function ClassifyPage() {
   const [confirming, setConfirming] = useState(false);
   const [editAccountId, setEditAccountId] = useState('');
   const [showEdit, setShowEdit] = useState(false);
+  const [currentModelName, setCurrentModelName] = useState('');
+
+  useEffect(() => {
+    const savedId = localStorage.getItem('selectedModelId') || DEFAULT_MODEL_ID;
+    const model = AI_MODELS.find((m) => m.id === savedId);
+    setCurrentModelName(model?.name || '');
+  }, []);
 
   useEffect(() => {
     if (!company) return;
@@ -40,6 +48,7 @@ export default function ClassifyPage() {
     setShowEdit(false);
     setClassifying(true);
 
+    const modelId = localStorage.getItem('selectedModelId') || DEFAULT_MODEL_ID;
     const res = await fetch(`/api/companies/${company.id}/classify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,6 +59,7 @@ export default function ClassifyPage() {
         transaction_date: txDate || undefined,
         description: description || undefined,
         save_transaction: saveTransaction,
+        model_id: modelId,
       }),
     });
 
@@ -85,6 +95,15 @@ export default function ClassifyPage() {
   return (
     <div className="max-w-3xl">
       <Header title="거래 분류" description="거래 정보를 입력하고 계정과목을 자동 분류합니다" />
+
+      {currentModelName && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
+          <span>사용 모델:</span>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+            {currentModelName}
+          </span>
+        </div>
+      )}
 
       <form onSubmit={handleClassify} className="bg-white rounded-xl shadow p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">

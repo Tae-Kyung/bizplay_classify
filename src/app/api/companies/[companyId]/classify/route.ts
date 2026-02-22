@@ -168,7 +168,7 @@ export async function POST(
     }));
 
   try {
-    const aiResult = await classifyWithAI(txInput, accounts, recentExamples, parsed.data.model_id);
+    const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, parsed.data.model_id);
 
     const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
     if (!matchedAccount) {

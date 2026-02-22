@@ -1,5 +1,7 @@
 import { anthropic } from '@/lib/claude/client';
 import { getModelConfig, resolveModelConfig, DEFAULT_MODEL_ID } from '@/lib/models/config';
+import { buildPrompts } from './prompt-templates';
+import { createServiceClient } from '@/lib/supabase/server';
 import type { Account, TransactionInput, ClassifyResult } from '@/types';
 
 interface ConfirmedExample {
@@ -10,49 +12,16 @@ interface ConfirmedExample {
   account_name: string;
 }
 
-function buildPrompts(
-  transaction: TransactionInput,
-  accounts: Account[],
-  recentExamples: ConfirmedExample[]
-) {
-  const accountsList = accounts
-    .filter((a) => a.is_active)
-    .map((a) => ({
-      code: a.code,
-      name: a.name,
-      category: a.category,
-    }));
+/** DB에서 회사별 커스텀 프롬프트 조회 (없으면 null) */
+export async function getCompanyPrompts(companyId: string) {
+  const client = await createServiceClient();
+  const { data } = await client
+    .from('company_prompt_settings')
+    .select('system_prompt, user_prompt')
+    .eq('company_id', companyId)
+    .single();
 
-  let examplesText = '';
-  if (recentExamples.length > 0) {
-    examplesText =
-      '\n\n과거 분류 사례:\n' +
-      recentExamples
-        .map(
-          (ex) =>
-            `- ${ex.merchant_name} (MCC:${ex.mcc_code}, ${ex.amount}원) → ${ex.account_code} ${ex.account_name}`
-        )
-        .join('\n');
-  }
-
-  const systemPrompt = `당신은 기업 회계 전문가입니다. 주어진 거래 내역을 분석하여 해당 회사의 계정과목 체계에 맞는 계정과목을 추천하세요.
-
-반드시 아래 회사 계정과목 목록에서만 선택해야 합니다.
-
-회사 계정과목 목록:
-${JSON.stringify(accountsList, null, 2)}${examplesText}
-
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
-{"account_code": "코드", "account_name": "계정과목명", "confidence": 0.0~1.0, "reason": "분류 사유"}`;
-
-  const userPrompt = `다음 거래를 분류해주세요:
-- 가맹점: ${transaction.merchant_name || '미상'}
-- 업종코드(MCC): ${transaction.mcc_code || '미상'}
-- 금액: ${transaction.amount.toLocaleString()}원
-- 거래일: ${transaction.transaction_date || '미상'}
-- 적요: ${transaction.description || '없음'}`;
-
-  return { systemPrompt, userPrompt };
+  return data ?? null;
 }
 
 async function callAnthropic(
@@ -114,7 +83,9 @@ export async function classifyWithAI(
   transaction: TransactionInput,
   accounts: Account[],
   recentExamples: ConfirmedExample[],
-  selectedModelId?: string
+  companyId: string,
+  selectedModelId?: string,
+  preloadedPrompts?: { system_prompt: string | null; user_prompt: string | null } | null
 ): Promise<ClassifyResult> {
   const baseConfig = getModelConfig(selectedModelId || DEFAULT_MODEL_ID);
   if (!baseConfig) {
@@ -122,11 +93,18 @@ export async function classifyWithAI(
   }
   const modelConfig = resolveModelConfig(baseConfig);
 
-  const { systemPrompt, userPrompt } = buildPrompts(
+  // 커스텀 프롬프트: preloaded가 있으면 사용, 없으면 DB 조회
+  const customPrompts = preloadedPrompts !== undefined
+    ? preloadedPrompts
+    : await getCompanyPrompts(companyId);
+
+  const { systemPrompt, userPrompt } = buildPrompts({
     transaction,
     accounts,
-    recentExamples
-  );
+    recentExamples,
+    customSystemPrompt: customPrompts?.system_prompt,
+    customUserPrompt: customPrompts?.user_prompt,
+  });
 
   let responseText: string;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, verifyCompanyMembership } from '@/lib/supabase/api-client';
 import { matchTransaction } from '@/lib/classify/rule-engine';
-import { classifyWithAI } from '@/lib/classify/ai-classifier';
+import { classifyWithAI, getCompanyPrompts } from '@/lib/classify/ai-classifier';
 import Papa from 'papaparse';
 import { z } from 'zod';
 
@@ -66,6 +66,9 @@ export async function POST(
       account_name: ex.account.name,
     }));
 
+  // 프롬프트 1회만 조회 (루프 전)
+  const customPrompts = await getCompanyPrompts(companyId);
+
   const result = {
     total: rows.length, success: 0, failed: 0,
     rule_classified: 0, ai_classified: 0,
@@ -127,7 +130,7 @@ export async function POST(
       }
 
       try {
-        const aiResult = await classifyWithAI(txInput, accounts, recentExamples, modelId);
+        const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, modelId, customPrompts);
         const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
         if (matchedAccount) {
           await client.from('classification_results').insert({

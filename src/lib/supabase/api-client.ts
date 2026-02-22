@@ -29,3 +29,19 @@ export async function verifyCompanyMembership(
 
   return !!data;
 }
+
+export async function verifyCompanyAdmin(
+  userId: string,
+  companyId: string
+) {
+  const client = await createServiceClient();
+  const { data } = await client
+    .from('company_users')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('company_id', companyId)
+    .eq('role', 'admin')
+    .single();
+
+  return !!data;
+}

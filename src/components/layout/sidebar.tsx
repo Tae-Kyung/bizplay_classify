@@ -12,6 +12,7 @@ const navItems = [
   { href: '/classify', label: '거래 분류', icon: '🏷️' },
   { href: '/classify/batch', label: '일괄 분류', icon: '📦' },
   { href: '/transactions', label: '거래 내역', icon: '📄' },
+  { href: '/settings', label: '설정', icon: '🔧' },
 ];
 
 export function Sidebar() {

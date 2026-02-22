@@ -66,6 +66,15 @@ export interface ClassificationResult {
   created_at: string;
 }
 
+export interface CompanyPromptSettings {
+  id: string;
+  company_id: string;
+  system_prompt: string | null;
+  user_prompt: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
 // Extended types with joins
 export interface ClassificationResultWithAccount extends ClassificationResult {
   account: Account;

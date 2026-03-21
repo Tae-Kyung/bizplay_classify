@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getAuthenticatedClient, verifyCompanyMembership } from '@/lib/supabase/api-client';
 import { matchTransaction } from '@/lib/classify/rule-engine';
 import { classifyWithAI, getCompanyPrompts } from '@/lib/classify/ai-classifier';
@@ -14,23 +14,56 @@ const rowSchema = z.object({
   card_type: z.string().optional().default(''),
 });
 
+// 한국어 컬럼명(처리내역 형식) → 영문 컬럼명으로 정규화
+function normalizeRow(raw: Record<string, string>): Record<string, string> {
+  if ('가맹점명' in raw) {
+    const amount = raw['공급금액'] && raw['부가세액']
+      ? String(Number(raw['공급금액']) + Number(raw['부가세액']))
+      : raw['공급금액'] ?? raw['amount'] ?? '';
+    const rawDate = raw['승인일자'] ?? '';
+    const transaction_date = rawDate.length === 8
+      ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+      : rawDate;
+    return {
+      merchant_name: raw['가맹점명'] ?? '',
+      mcc_code: raw['가맹점업종코드'] ?? '',
+      amount,
+      transaction_date,
+      description: raw['가맹점업종명'] ?? '',
+      card_type: '',
+    };
+  }
+  return raw;
+}
+
+function sseEvent(data: object): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
   const { user, client } = await getAuthenticatedClient();
-  if (!user || !client) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await verifyCompanyMembership(user.id, companyId)))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !client) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+  if (!(await verifyCompanyMembership(user.id, companyId))) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+  }
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
-  if (!file) return NextResponse.json({ error: 'CSV 파일을 업로드하세요' }, { status: 400 });
+  if (!file) {
+    return new Response(JSON.stringify({ error: 'CSV 파일을 업로드하세요' }), { status: 400 });
+  }
 
-  const text = await file.text();
+  const text = (await file.text()).replace(/^\uFEFF/, '');
   const { data: rows, errors } = Papa.parse(text, { header: true, skipEmptyLines: true });
-  if (errors.length > 0) return NextResponse.json({ error: 'CSV 파싱 오류' }, { status: 400 });
+  if (errors.length > 0) {
+    return new Response(JSON.stringify({ error: 'CSV 파싱 오류' }), { status: 400 });
+  }
 
   const { data: rulesData } = await client
     .from('classification_rules')
@@ -65,90 +98,122 @@ export async function POST(
       account_name: ex.account.name,
     }));
 
-  // 프롬프트 1회만 조회 (루프 전)
   const customPrompts = await getCompanyPrompts(companyId);
 
+  const total = rows.length;
   const result = {
-    total: rows.length, success: 0, failed: 0,
-    rule_classified: 0, ai_classified: 0,
+    total,
+    success: 0,
+    failed: 0,
+    rule_classified: 0,
+    ai_classified: 0,
     errors: [] as { row: number; error: string }[],
   };
 
-  const BATCH_SIZE = 5;
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
-    const promises = batch.map(async (row, batchIdx) => {
-      const rowNum = i + batchIdx + 1;
-      const parsed = rowSchema.safeParse(row);
-      if (!parsed.success) {
-        result.failed++;
-        result.errors.push({ row: rowNum, error: '유효하지 않은 데이터' });
-        return;
-      }
+  const stream = new ReadableStream({
+    async start(controller) {
+      // 초기 이벤트
+      controller.enqueue(sseEvent({ type: 'init', total }));
 
-      const txData = parsed.data;
-      const cardType = ['corporate', 'personal'].includes(txData.card_type) ? txData.card_type : null;
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (row, batchIdx) => {
+          const rowNum = i + batchIdx + 1;
+          const parsed = rowSchema.safeParse(normalizeRow(row as Record<string, string>));
+          if (!parsed.success) {
+            result.failed++;
+            result.errors.push({ row: rowNum, error: '유효하지 않은 데이터' });
+            return;
+          }
 
-      const { data: newTx, error: txError } = await client
-        .from('transactions')
-        .insert({
-          company_id: companyId, user_id: user.id,
-          merchant_name: txData.merchant_name, mcc_code: txData.mcc_code || null,
-          amount: txData.amount, transaction_date: txData.transaction_date || null,
-          description: txData.description || null, card_type: cardType,
-        })
-        .select().single();
+          const txData = parsed.data;
+          const cardType = ['corporate', 'personal'].includes(txData.card_type) ? txData.card_type : null;
 
-      if (txError || !newTx) {
-        result.failed++;
-        result.errors.push({ row: rowNum, error: txError?.message || '거래 저장 실패' });
-        return;
-      }
+          const { data: newTx, error: txError } = await client
+            .from('transactions')
+            .insert({
+              company_id: companyId, user_id: user.id,
+              merchant_name: txData.merchant_name, mcc_code: txData.mcc_code || null,
+              amount: txData.amount, transaction_date: txData.transaction_date || null,
+              description: txData.description || null, card_type: cardType,
+            })
+            .select().single();
 
-      const txInput = {
-        merchant_name: txData.merchant_name, mcc_code: txData.mcc_code || undefined,
-        amount: txData.amount, transaction_date: txData.transaction_date || undefined,
-        description: txData.description || undefined,
-      };
+          if (txError || !newTx) {
+            result.failed++;
+            result.errors.push({ row: rowNum, error: txError?.message || '거래 저장 실패' });
+            return;
+          }
 
-      const ruleResult = matchTransaction(rules, txInput);
-      if (ruleResult.matched && ruleResult.account) {
-        await client.from('classification_results').insert({
-          transaction_id: newTx.id, account_id: ruleResult.account.id,
-          confidence: 1.0, reason: `룰 "${ruleResult.rule!.name}"에 의해 자동 분류`, method: 'rule',
+          const txInput = {
+            merchant_name: txData.merchant_name, mcc_code: txData.mcc_code || undefined,
+            amount: txData.amount, transaction_date: txData.transaction_date || undefined,
+            description: txData.description || undefined,
+          };
+
+          const ruleResult = matchTransaction(rules, txInput);
+          if (ruleResult.matched && ruleResult.account) {
+            await client.from('classification_results').insert({
+              transaction_id: newTx.id, account_id: ruleResult.account.id,
+              confidence: 1.0, reason: `룰 "${ruleResult.rule!.name}"에 의해 자동 분류`, method: 'rule',
+            });
+            result.success++;
+            result.rule_classified++;
+            return;
+          }
+
+          if (accounts.length === 0) {
+            result.failed++;
+            result.errors.push({ row: rowNum, error: '계정과목이 없습니다' });
+            return;
+          }
+
+          try {
+            const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, customPrompts);
+            const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
+            if (matchedAccount) {
+              await client.from('classification_results').insert({
+                transaction_id: newTx.id, account_id: matchedAccount.id,
+                confidence: aiResult.confidence, reason: aiResult.reason, method: 'ai',
+              });
+              result.success++;
+              result.ai_classified++;
+            } else {
+              result.failed++;
+              result.errors.push({ row: rowNum, error: 'AI가 유효하지 않은 계정과목 반환' });
+            }
+          } catch (err: any) {
+            result.failed++;
+            result.errors.push({ row: rowNum, error: err.message });
+          }
         });
-        result.success++;
-        result.rule_classified++;
-        return;
+
+        await Promise.allSettled(promises);
+
+        // 배치 완료마다 진행 상황 전송
+        controller.enqueue(sseEvent({
+          type: 'progress',
+          processed: Math.min(i + BATCH_SIZE, total),
+          total,
+          success: result.success,
+          failed: result.failed,
+          rule_classified: result.rule_classified,
+          ai_classified: result.ai_classified,
+        }));
       }
 
-      if (accounts.length === 0) {
-        result.failed++;
-        result.errors.push({ row: rowNum, error: '계정과목이 없습니다' });
-        return;
-      }
+      // 완료 이벤트
+      controller.enqueue(sseEvent({ type: 'done', ...result }));
+      controller.close();
+    },
+  });
 
-      try {
-        const aiResult = await classifyWithAI(txInput, accounts, recentExamples, companyId, customPrompts);
-        const matchedAccount = accounts.find((a) => a.code === aiResult.account_code);
-        if (matchedAccount) {
-          await client.from('classification_results').insert({
-            transaction_id: newTx.id, account_id: matchedAccount.id,
-            confidence: aiResult.confidence, reason: aiResult.reason, method: 'ai',
-          });
-          result.success++;
-          result.ai_classified++;
-        } else {
-          result.failed++;
-          result.errors.push({ row: rowNum, error: 'AI가 유효하지 않은 계정과목 반환' });
-        }
-      } catch (err: any) {
-        result.failed++;
-        result.errors.push({ row: rowNum, error: err.message });
-      }
-    });
-    await Promise.allSettled(promises);
-  }
-
-  return NextResponse.json(result);
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }

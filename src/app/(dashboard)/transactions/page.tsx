@@ -25,6 +25,7 @@ export default function TransactionsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<{ deleted: number; total: number } | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set());
   const [bulkConfirming, setBulkConfirming] = useState(false);
@@ -86,13 +87,41 @@ export default function TransactionsPage() {
   const deleteAll = async () => {
     if (!confirm(`전체 ${total}건의 거래를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
     setDeletingAll(true);
-    await fetch(`/api/companies/${company!.id}/transactions`, {
+    setDeleteProgress({ deleted: 0, total });
+
+    const res = await fetch(`/api/companies/${company!.id}/transactions`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
     });
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() ?? '';
+      for (const chunk of lines) {
+        const line = chunk.replace(/^data: /, '').trim();
+        if (!line) continue;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'progress') {
+            setDeleteProgress({ deleted: event.deleted, total: event.total });
+          } else if (event.type === 'done') {
+            setDeleteProgress({ deleted: event.deleted, total: event.total });
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
     setSelectedIds(new Set());
     setDeletingAll(false);
+    setDeleteProgress(null);
     setPage(1);
     fetchTransactions();
   };
@@ -428,6 +457,41 @@ export default function TransactionsPage() {
           >
             다음
           </button>
+        </div>
+      )}
+
+      {/* 전체 삭제 진행 오버레이 */}
+      {deletingAll && deleteProgress && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,64,139,0.15)', backdropFilter: 'blur(4px)' }}
+        >
+          <div className="rounded-2xl p-8 w-80" style={{ backgroundColor: '#ffffff', boxShadow: '0 40px 80px rgba(0,64,139,0.08)' }}>
+            <h3 className="text-base font-semibold mb-1" style={{ color: '#1b1c1c', fontFamily: 'var(--font-plus-jakarta-sans, sans-serif)' }}>
+              전체 삭제 중...
+            </h3>
+            <p className="text-sm mb-5" style={{ color: '#424752' }}>
+              잠시만 기다려 주세요
+            </p>
+            <div className="flex justify-between text-sm mb-2">
+              <span style={{ color: '#424752' }}>{deleteProgress.deleted.toLocaleString()}건 삭제됨</span>
+              <span style={{ color: '#727784' }}>
+                {deleteProgress.total > 0 ? Math.round((deleteProgress.deleted / deleteProgress.total) * 100) : 0}%
+              </span>
+            </div>
+            <div className="w-full rounded-full h-2.5 overflow-hidden" style={{ backgroundColor: '#e4e2e1' }}>
+              <div
+                className="h-2.5 rounded-full transition-all duration-300"
+                style={{
+                  width: `${deleteProgress.total > 0 ? Math.round((deleteProgress.deleted / deleteProgress.total) * 100) : 0}%`,
+                  background: 'linear-gradient(to right, #00408b, #0057b8)',
+                }}
+              />
+            </div>
+            <p className="text-xs mt-3 text-center" style={{ color: '#727784' }}>
+              전체 {deleteProgress.total.toLocaleString()}건
+            </p>
+          </div>
         </div>
       )}
 

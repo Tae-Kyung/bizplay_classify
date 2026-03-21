@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, verifyCompanyMembership } from '@/lib/supabase/api-client';
 import { z } from 'zod';
 
-const deleteTransactionsSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(100),
-});
+const deleteTransactionsSchema = z.union([
+  z.object({ ids: z.array(z.string().uuid()).min(1).max(100), all: z.undefined() }),
+  z.object({ all: z.literal(true), ids: z.undefined() }),
+]);
 
 const createTransactionSchema = z.object({
   merchant_name: z.string().min(1, '가맹점명을 입력하세요'),
@@ -41,6 +42,8 @@ export async function POST(
   return NextResponse.json(data, { status: 201 });
 }
 
+const BATCH_SIZE = 200;
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
@@ -57,14 +60,75 @@ export async function DELETE(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { error, count } = await client
+  // 선택 삭제: 기존 방식 유지
+  if (!parsed.data.all) {
+    const { error, count } = await client
+      .from('transactions')
+      .delete({ count: 'exact' })
+      .eq('company_id', companyId)
+      .in('id', parsed.data.ids!);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ deleted: count });
+  }
+
+  // 전체 삭제: 배치 처리 + SSE 스트리밍
+  const { count: totalCount } = await client
     .from('transactions')
-    .delete({ count: 'exact' })
-    .in('id', parsed.data.ids)
+    .select('*', { count: 'exact', head: true })
     .eq('company_id', companyId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ deleted: count });
+  const total = totalCount || 0;
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (data: object) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+
+      let deleted = 0;
+
+      while (true) {
+        const { data: batch, error: fetchError } = await client
+          .from('transactions')
+          .select('id')
+          .eq('company_id', companyId)
+          .limit(BATCH_SIZE);
+
+        if (fetchError) {
+          send({ type: 'error', message: fetchError.message });
+          break;
+        }
+        if (!batch || batch.length === 0) break;
+
+        const ids = batch.map((r: any) => r.id);
+        const { error: deleteError } = await client
+          .from('transactions')
+          .delete()
+          .in('id', ids);
+
+        if (deleteError) {
+          send({ type: 'error', message: deleteError.message });
+          break;
+        }
+
+        deleted += ids.length;
+        send({ type: 'progress', deleted, total });
+
+        if (ids.length < BATCH_SIZE) break;
+      }
+
+      send({ type: 'done', deleted, total });
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 export async function GET(

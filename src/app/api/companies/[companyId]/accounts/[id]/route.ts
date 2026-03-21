@@ -46,14 +46,12 @@ export async function DELETE(
   if (!(await verifyCompanyMembership(user.id, companyId)))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { data, error } = await client
+  const { error } = await client
     .from('accounts')
-    .update({ is_active: false })
+    .delete()
     .eq('id', id)
-    .eq('company_id', companyId)
-    .select()
-    .single();
+    .eq('company_id', companyId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json({ deleted: true });
 }

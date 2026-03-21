@@ -15,6 +15,8 @@ export default function AccountsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     if (!company) return;
@@ -33,6 +35,41 @@ export default function AccountsPage() {
 
   const categories = [...new Set(accounts.map((a) => a.category).filter(Boolean))] as string[];
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === accounts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(accounts.map((a) => a.id)));
+    }
+  };
+
+  const deleteAccount = async (id: string) => {
+    await fetch(`/api/companies/${company!.id}/accounts/${id}`, { method: 'DELETE' });
+    fetchAccounts();
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개의 계정과목을 삭제하시겠습니까?\n연결된 분류 결과에 영향을 줄 수 있습니다.`)) return;
+    setDeleting(true);
+    await Promise.all(
+      [...selectedIds].map((id) =>
+        fetch(`/api/companies/${company!.id}/accounts/${id}`, { method: 'DELETE' })
+      )
+    );
+    setSelectedIds(new Set());
+    setDeleting(false);
+    fetchAccounts();
+  };
+
   if (!company) return <div style={{ color: '#727784' }}>회사를 선택하세요</div>;
 
   return (
@@ -42,6 +79,16 @@ export default function AccountsPage() {
         description="회사별 계정과목을 등록하고 관리합니다"
         action={
           <div className="flex gap-2">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={deleteSelected}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#ba1a1a' }}
+              >
+                {deleting ? '삭제 중...' : `선택 삭제 (${selectedIds.size})`}
+              </button>
+            )}
             <button
               onClick={() => setImportModalOpen(true)}
               className="px-4 py-2 text-sm rounded-xl font-medium transition-colors"
@@ -70,8 +117,8 @@ export default function AccountsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="코드 또는 이름으로 검색..."
-          className="px-3 py-2 rounded-xl text-sm w-64 border-0 focus:outline-none focus:ring-2"
-          style={{ backgroundColor: '#f0eded', color: '#1b1c1c', '--tw-ring-color': '#00408b' } as React.CSSProperties}
+          className="px-3 py-2 rounded-xl text-sm w-64 border-0 focus:outline-none"
+          style={{ backgroundColor: '#f0eded', color: '#1b1c1c' }}
         />
         <select
           value={categoryFilter}
@@ -99,6 +146,13 @@ export default function AccountsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs font-medium uppercase tracking-wide" style={{ backgroundColor: '#f6f3f2', color: '#424752' }}>
+              <th className="px-4 py-3.5 w-8">
+                <input
+                  type="checkbox"
+                  checked={accounts.length > 0 && selectedIds.size === accounts.length}
+                  onChange={toggleSelectAll}
+                />
+              </th>
               <th className="px-5 py-3.5">코드</th>
               <th className="px-5 py-3.5">계정과목명</th>
               <th className="px-5 py-3.5">분류</th>
@@ -109,7 +163,7 @@ export default function AccountsPage() {
           <tbody>
             {accounts.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-sm" style={{ color: '#727784' }}>
+                <td colSpan={6} className="px-5 py-10 text-center text-sm" style={{ color: '#727784' }}>
                   계정과목이 없습니다. 추가하거나 CSV로 가져오세요.
                 </td>
               </tr>
@@ -117,9 +171,20 @@ export default function AccountsPage() {
               accounts.map((a, idx) => (
                 <tr
                   key={a.id}
-                  style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fbf9f8' }}
-                  className="transition-colors hover:brightness-[0.98]"
+                  style={{
+                    backgroundColor: selectedIds.has(a.id)
+                      ? '#dbeafe'
+                      : idx % 2 === 0 ? '#ffffff' : '#fbf9f8',
+                  }}
+                  className="transition-colors"
                 >
+                  <td className="px-4 py-3.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(a.id)}
+                      onChange={() => toggleSelect(a.id)}
+                    />
+                  </td>
                   <td className="px-5 py-3.5 font-mono text-xs" style={{ color: '#424752' }}>{a.code}</td>
                   <td className="px-5 py-3.5 font-medium" style={{ color: '#1b1c1c' }}>{a.name}</td>
                   <td className="px-5 py-3.5 text-sm" style={{ color: '#424752' }}>{a.category || '-'}</td>
@@ -130,13 +195,13 @@ export default function AccountsPage() {
                       <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#e4e2e1', color: '#727784' }}>비활성</span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-right">
+                  <td className="px-5 py-3.5 text-right space-x-3">
                     <button
                       onClick={() => {
                         setEditingAccount(a);
                         setModalOpen(true);
                       }}
-                      className="text-xs font-medium mr-3 transition-opacity hover:opacity-70"
+                      className="text-xs font-medium transition-opacity hover:opacity-70"
                       style={{ color: '#00408b' }}
                     >
                       수정
@@ -145,14 +210,15 @@ export default function AccountsPage() {
                       <button
                         onClick={async () => {
                           if (!confirm('비활성화하시겠습니까?')) return;
-                          await fetch(
-                            `/api/companies/${company.id}/accounts/${a.id}`,
-                            { method: 'DELETE' }
-                          );
+                          await fetch(`/api/companies/${company.id}/accounts/${a.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_active: false }),
+                          });
                           fetchAccounts();
                         }}
                         className="text-xs font-medium transition-opacity hover:opacity-70"
-                        style={{ color: '#ba1a1a' }}
+                        style={{ color: '#424752' }}
                       >
                         비활성화
                       </button>
@@ -160,22 +226,29 @@ export default function AccountsPage() {
                       <button
                         onClick={async () => {
                           if (!confirm('활성화하시겠습니까?')) return;
-                          await fetch(
-                            `/api/companies/${company.id}/accounts/${a.id}`,
-                            {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ is_active: true }),
-                            }
-                          );
+                          await fetch(`/api/companies/${company.id}/accounts/${a.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_active: true }),
+                          });
                           fetchAccounts();
                         }}
                         className="text-xs font-medium transition-opacity hover:opacity-70"
-                        style={{ color: '#1a7a4a' }}
+                        style={{ color: '#15803d' }}
                       >
                         활성화
                       </button>
                     )}
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`'${a.name}' 계정과목을 삭제하시겠습니까?\n연결된 분류 결과에 영향을 줄 수 있습니다.`)) return;
+                        await deleteAccount(a.id);
+                      }}
+                      className="text-xs font-medium transition-opacity hover:opacity-70"
+                      style={{ color: '#ba1a1a' }}
+                    >
+                      삭제
+                    </button>
                   </td>
                 </tr>
               ))
@@ -367,10 +440,7 @@ function CsvImportModal({
         <input
           type="file"
           accept=".csv"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] || null);
-            setResult(null);
-          }}
+          onChange={(e) => { setFile(e.target.files?.[0] || null); setResult(null); }}
           className="text-sm"
         />
         {result && (

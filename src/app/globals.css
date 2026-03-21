@@ -1,23 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bp-primary: #00408b;
+  --bp-primary-container: #0057b8;
+  --bp-surface: #fbf9f8;
+  --bp-surface-low: #f6f3f2;
+  --bp-surface-mid: #f0eded;
+  --bp-surface-high: #eae8e7;
+  --bp-surface-highest: #e4e2e1;
+  --bp-surface-lowest: #ffffff;
+  --bp-on-surface: #1b1c1c;
+  --bp-on-surface-variant: #424752;
+  --bp-outline: #727784;
+  --bp-outline-variant: #c2c6d4;
+  --bp-error: #ba1a1a;
+  --bp-error-container: #ffdad6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--bp-surface);
+  --color-foreground: var(--bp-on-surface);
+  --font-sans: var(--font-inter);
+  --font-headline: var(--font-plus-jakarta-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bp-surface);
+  color: var(--bp-on-surface);
+  font-family: var(--font-inter, 'Inter', sans-serif);
+}
+
+h1, h2, h3, .font-headline {
+  font-family: var(--font-plus-jakarta-sans, 'Plus Jakarta Sans', sans-serif);
 }
 
 input, select, textarea {
-  color: #171717;
+  color: var(--bp-on-surface);
 }

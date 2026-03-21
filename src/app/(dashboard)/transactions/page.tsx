@@ -24,6 +24,8 @@ export default function TransactionsPage() {
   const [classifyingIds, setClassifyingIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set());
   const [bulkConfirming, setBulkConfirming] = useState(false);
 
@@ -58,13 +60,11 @@ export default function TransactionsPage() {
   const classifyTransaction = async (txId: string) => {
     if (!company) return;
     setClassifyingIds((prev) => new Set(prev).add(txId));
-
     await fetch(`/api/companies/${company.id}/classify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transaction_id: txId }),
     });
-
     setClassifyingIds((prev) => {
       const next = new Set(prev);
       next.delete(txId);
@@ -77,13 +77,24 @@ export default function TransactionsPage() {
     await fetch(`/api/classifications/${resultId}/confirm`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        is_confirmed: true,
-        confirmed_account_id: accountId || undefined,
-      }),
+      body: JSON.stringify({ is_confirmed: true, confirmed_account_id: accountId || undefined }),
     });
     fetchTransactions();
     setSelectedTx(null);
+  };
+
+  const deleteAll = async () => {
+    if (!confirm(`전체 ${total}건의 거래를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    setDeletingAll(true);
+    await fetch(`/api/companies/${company!.id}/transactions`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    setSelectedIds(new Set());
+    setDeletingAll(false);
+    setPage(1);
+    fetchTransactions();
   };
 
   const deleteSelected = async () => {
@@ -159,7 +170,7 @@ export default function TransactionsPage() {
 
   const totalPages = Math.ceil(total / perPage);
 
-  if (!company) return <div className="text-gray-400">회사를 선택하세요</div>;
+  if (!company) return <div style={{ color: '#727784' }}>회사를 선택하세요</div>;
 
   const getStatus = (tx: any) => {
     if (!tx.classification_results?.length) return 'unclassified';
@@ -172,23 +183,51 @@ export default function TransactionsPage() {
     return tx.classification_results[tx.classification_results.length - 1];
   };
 
+  const inputStyle = { backgroundColor: '#f0eded', color: '#1b1c1c' };
+
   return (
     <div>
-      <Header title="거래 내역" description="거래 목록을 조회하고 분류 결과를 확인합니다" />
+      <Header
+        title="거래 내역"
+        description="거래 목록을 조회하고 분류 결과를 확인합니다"
+        action={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setImportModalOpen(true)}
+              className="px-4 py-2 text-sm rounded-xl font-medium transition-colors"
+              style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
+            >
+              처리내역 Import
+            </button>
+            {total > 0 && (
+              <button
+                onClick={deleteAll}
+                disabled={deletingAll}
+                className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#ba1a1a' }}
+              >
+                {deletingAll ? '삭제 중...' : `전체 삭제 (${total}건)`}
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-5">
         <input
           type="text"
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="가맹점명 검색..."
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-48"
+          className="px-3 py-2 rounded-xl text-sm w-48 border-0 focus:outline-none"
+          style={inputStyle}
         />
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 rounded-xl text-sm border-0 focus:outline-none"
+          style={inputStyle}
         >
           <option value="">전체 상태</option>
           <option value="unclassified">미분류</option>
@@ -199,28 +238,31 @@ export default function TransactionsPage() {
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 rounded-xl text-sm border-0 focus:outline-none"
+          style={inputStyle}
         />
-        <span className="self-center text-gray-400">~</span>
+        <span className="self-center text-sm" style={{ color: '#727784' }}>~</span>
         <input
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 rounded-xl text-sm border-0 focus:outline-none"
+          style={inputStyle}
         />
       </div>
 
       {/* Bulk Actions */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 mb-4 bg-blue-50 px-4 py-2 rounded-lg">
-          <span className="text-sm text-blue-700 font-medium">
+        <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl" style={{ backgroundColor: '#dbeafe' }}>
+          <span className="text-sm font-medium" style={{ color: '#1e40af' }}>
             {selectedIds.size}건 선택됨
           </span>
           {transactions.some((tx) => selectedIds.has(tx.id) && getStatus(tx) === 'classified') && (
             <button
               onClick={confirmSelected}
               disabled={bulkConfirming}
-              className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm text-white rounded-lg font-medium disabled:opacity-50"
+              style={{ backgroundColor: '#15803d' }}
             >
               {bulkConfirming ? '확정 중...' : '선택 확정'}
             </button>
@@ -228,13 +270,15 @@ export default function TransactionsPage() {
           <button
             onClick={deleteSelected}
             disabled={deleting}
-            className="px-3 py-1 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            className="px-3 py-1.5 text-sm text-white rounded-lg font-medium disabled:opacity-50"
+            style={{ backgroundColor: '#ba1a1a' }}
           >
             {deleting ? '삭제 중...' : '선택 삭제'}
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white"
+            className="px-3 py-1.5 text-sm rounded-lg font-medium"
+            style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
           >
             선택 해제
           </button>
@@ -242,11 +286,11 @@ export default function TransactionsPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-gray-500">
-              <th className="px-4 py-3 w-10">
+          <thead>
+            <tr className="text-left text-xs font-medium uppercase tracking-wide" style={{ backgroundColor: '#f6f3f2', color: '#424752' }}>
+              <th className="px-4 py-3.5 w-10">
                 <input
                   type="checkbox"
                   checked={transactions.length > 0 && selectedIds.size === transactions.length}
@@ -254,34 +298,35 @@ export default function TransactionsPage() {
                   className="rounded"
                 />
               </th>
-              <th className="px-4 py-3">거래일</th>
-              <th className="px-4 py-3">가맹점명</th>
-              <th className="px-4 py-3 text-right">금액</th>
-              <th className="px-4 py-3">계정과목</th>
-              <th className="px-4 py-3">신뢰도</th>
-              <th className="px-4 py-3">방법</th>
-              <th className="px-4 py-3">상태</th>
-              <th className="px-4 py-3 text-right">작업</th>
+              <th className="px-5 py-3.5">거래일</th>
+              <th className="px-5 py-3.5">가맹점명</th>
+              <th className="px-5 py-3.5 text-right">금액</th>
+              <th className="px-5 py-3.5">계정과목</th>
+              <th className="px-5 py-3.5">신뢰도</th>
+              <th className="px-5 py-3.5">방법</th>
+              <th className="px-5 py-3.5">상태</th>
+              <th className="px-5 py-3.5 text-right">작업</th>
             </tr>
           </thead>
           <tbody>
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={9} className="px-5 py-10 text-center text-sm" style={{ color: '#727784' }}>
                   거래 내역이 없습니다
                 </td>
               </tr>
             ) : (
-              transactions.map((tx) => {
+              transactions.map((tx, idx) => {
                 const status = getStatus(tx);
                 const result = getLatestResult(tx);
                 return (
                   <tr
                     key={tx.id}
-                    className="border-t hover:bg-gray-50 cursor-pointer"
+                    style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fbf9f8', cursor: 'pointer' }}
+                    className="transition-colors hover:brightness-[0.97]"
                     onClick={() => setSelectedTx(tx)}
                   >
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(tx.id)}
@@ -289,43 +334,43 @@ export default function TransactionsPage() {
                         className="rounded"
                       />
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="px-5 py-3.5 text-xs" style={{ color: '#424752' }}>
                       {tx.transaction_date || '-'}
                     </td>
-                    <td className="px-4 py-3">{tx.merchant_name || '-'}</td>
-                    <td className="px-4 py-3 text-right font-mono">
+                    <td className="px-5 py-3.5 font-medium" style={{ color: '#1b1c1c' }}>{tx.merchant_name || '-'}</td>
+                    <td className="px-5 py-3.5 text-right font-mono text-sm" style={{ color: '#1b1c1c' }}>
                       {Number(tx.amount).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       {result?.account ? (
                         <span>
-                          <span className="font-mono text-xs text-gray-400 mr-1">
+                          <span className="font-mono text-xs mr-1" style={{ color: '#727784' }}>
                             {result.account.code}
                           </span>
-                          {result.account.name}
+                          <span style={{ color: '#1b1c1c' }}>{result.account.name}</span>
                         </span>
                       ) : (
-                        <span className="text-gray-300">-</span>
+                        <span style={{ color: '#c2c6d4' }}>-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       {result ? <ConfidenceBadge confidence={result.confidence} /> : '-'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       {result ? <MethodTag method={result.method} /> : '-'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3.5">
                       {status === 'confirmed' && (
-                        <span className="text-xs text-green-600 font-medium">확정</span>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>확정</span>
                       )}
                       {status === 'classified' && (
-                        <span className="text-xs text-yellow-600 font-medium">미확정</span>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}>미확정</span>
                       )}
                       {status === 'unclassified' && (
-                        <span className="text-xs text-gray-400">미분류</span>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#e4e2e1', color: '#727784' }}>미분류</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-5 py-3.5 text-right">
                       {status === 'unclassified' && (
                         <button
                           onClick={(e) => {
@@ -333,7 +378,8 @@ export default function TransactionsPage() {
                             classifyTransaction(tx.id);
                           }}
                           disabled={classifyingIds.has(tx.id)}
-                          className="text-blue-600 hover:underline text-xs disabled:opacity-50"
+                          className="text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-50"
+                          style={{ color: '#00408b' }}
                         >
                           {classifyingIds.has(tx.id) ? '분류 중...' : '분류'}
                         </button>
@@ -345,7 +391,8 @@ export default function TransactionsPage() {
                             confirmSingle(tx);
                           }}
                           disabled={confirmingIds.has(tx.id)}
-                          className="text-green-600 hover:underline text-xs disabled:opacity-50"
+                          className="text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-50"
+                          style={{ color: '#15803d' }}
                         >
                           {confirmingIds.has(tx.id) ? '확정 중...' : '확정'}
                         </button>
@@ -361,33 +408,41 @@ export default function TransactionsPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4">
+        <div className="flex items-center justify-center gap-2 mt-5">
           <button
             disabled={page <= 1}
             onClick={() => setPage(page - 1)}
-            className="px-3 py-1 text-sm border rounded disabled:opacity-50"
+            className="px-4 py-1.5 text-sm rounded-xl font-medium disabled:opacity-40 transition-colors"
+            style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
           >
             이전
           </button>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm" style={{ color: '#424752' }}>
             {page} / {totalPages}
           </span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage(page + 1)}
-            className="px-3 py-1 text-sm border rounded disabled:opacity-50"
+            className="px-4 py-1.5 text-sm rounded-xl font-medium disabled:opacity-40 transition-colors"
+            style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
           >
             다음
           </button>
         </div>
       )}
 
-      {/* Detail Modal */}
       <TransactionDetailModal
         tx={selectedTx}
         accounts={accounts}
         onClose={() => setSelectedTx(null)}
         onConfirm={confirmResult}
+      />
+
+      <TransactionImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        companyId={company.id}
+        onImported={() => { setPage(1); fetchTransactions(); }}
       />
     </div>
   );
@@ -416,51 +471,49 @@ function TransactionDetailModal({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <span className="text-gray-500">가맹점명</span>
-            <p className="font-medium">{tx.merchant_name || '-'}</p>
+            <span className="text-xs font-medium" style={{ color: '#424752' }}>가맹점명</span>
+            <p className="font-medium mt-0.5" style={{ color: '#1b1c1c' }}>{tx.merchant_name || '-'}</p>
           </div>
           <div>
-            <span className="text-gray-500">업종코드</span>
-            <p className="font-medium">{tx.mcc_code || '-'}</p>
+            <span className="text-xs font-medium" style={{ color: '#424752' }}>업종코드</span>
+            <p className="font-medium mt-0.5" style={{ color: '#1b1c1c' }}>{tx.mcc_code || '-'}</p>
           </div>
           <div>
-            <span className="text-gray-500">금액</span>
-            <p className="font-medium">{Number(tx.amount).toLocaleString()}원</p>
+            <span className="text-xs font-medium" style={{ color: '#424752' }}>금액</span>
+            <p className="font-medium mt-0.5" style={{ color: '#1b1c1c' }}>{Number(tx.amount).toLocaleString()}원</p>
           </div>
           <div>
-            <span className="text-gray-500">거래일</span>
-            <p className="font-medium">{tx.transaction_date || '-'}</p>
+            <span className="text-xs font-medium" style={{ color: '#424752' }}>거래일</span>
+            <p className="font-medium mt-0.5" style={{ color: '#1b1c1c' }}>{tx.transaction_date || '-'}</p>
           </div>
           <div className="col-span-2">
-            <span className="text-gray-500">적요</span>
-            <p className="font-medium">{tx.description || '-'}</p>
+            <span className="text-xs font-medium" style={{ color: '#424752' }}>적요</span>
+            <p className="font-medium mt-0.5" style={{ color: '#1b1c1c' }}>{tx.description || '-'}</p>
           </div>
         </div>
 
         {result && (
-          <div className="border-t pt-4 space-y-3">
-            <h4 className="font-medium">분류 결과</h4>
+          <div className="space-y-3 pt-4" style={{ borderTop: '1px solid #f0eded' }}>
+            <h4 className="font-medium text-sm" style={{ color: '#1b1c1c' }}>분류 결과</h4>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-20">계정과목</span>
-              <span>
-                <span className="font-mono text-sm text-gray-400 mr-1">
-                  {result.account?.code}
-                </span>
+              <span className="text-xs w-20" style={{ color: '#424752' }}>계정과목</span>
+              <span className="font-medium text-sm" style={{ color: '#1b1c1c' }}>
+                <span className="font-mono text-xs mr-1" style={{ color: '#727784' }}>{result.account?.code}</span>
                 {result.account?.name}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-20">신뢰도</span>
+              <span className="text-xs w-20" style={{ color: '#424752' }}>신뢰도</span>
               <ConfidenceBadge confidence={result.confidence} />
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-20">방법</span>
+              <span className="text-xs w-20" style={{ color: '#424752' }}>방법</span>
               <MethodTag method={result.method} />
             </div>
             {result.reason && (
               <div>
-                <span className="text-sm text-gray-500">사유</span>
-                <p className="mt-1 text-sm bg-gray-50 p-3 rounded">{result.reason}</p>
+                <span className="text-xs" style={{ color: '#424752' }}>사유</span>
+                <p className="mt-1.5 text-sm p-3 rounded-xl" style={{ backgroundColor: '#f6f3f2', color: '#1b1c1c' }}>{result.reason}</p>
               </div>
             )}
 
@@ -470,35 +523,35 @@ function TransactionDetailModal({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onConfirm(result.id)}
-                      className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: '#15803d' }}
                     >
                       확정
                     </button>
                     <button
                       onClick={() => setShowEdit(true)}
-                      className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50"
+                      className="px-4 py-2 text-sm rounded-xl font-medium"
+                      style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
                     >
                       수정
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <AccountSelect
-                      accounts={accounts}
-                      value={editAccountId}
-                      onChange={setEditAccountId}
-                    />
+                    <AccountSelect accounts={accounts} value={editAccountId} onChange={setEditAccountId} />
                     <div className="flex gap-2">
                       <button
                         onClick={() => onConfirm(result.id, editAccountId)}
                         disabled={!editAccountId}
-                        className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg disabled:opacity-50"
+                        className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: '#15803d' }}
                       >
                         수정 확정
                       </button>
                       <button
                         onClick={() => setShowEdit(false)}
-                        className="px-4 py-2 text-sm border rounded-lg"
+                        className="px-4 py-2 text-sm rounded-xl font-medium"
+                        style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
                       >
                         취소
                       </button>
@@ -509,10 +562,166 @@ function TransactionDetailModal({
             )}
 
             {result.is_confirmed && (
-              <div className="text-sm text-green-600 font-medium">확정 완료</div>
+              <div className="text-sm font-medium" style={{ color: '#15803d' }}>확정 완료</div>
             )}
           </div>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+function TransactionImportModal({
+  open,
+  onClose,
+  companyId,
+  onImported,
+}: {
+  open: boolean;
+  onClose: () => void;
+  companyId: string;
+  onImported: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ processed: number; total: number; imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<any>(null);
+
+  const reset = () => { setFile(null); setResult(null); setProgress(null); };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    setResult(null);
+    setProgress(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`/api/companies/${companyId}/transactions/import`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setResult({ error: data.error || '업로드 실패' });
+      setUploading(false);
+      return;
+    }
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() ?? '';
+      for (const chunk of lines) {
+        const line = chunk.replace(/^data: /, '').trim();
+        if (!line) continue;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'progress') {
+            setProgress({ processed: event.processed, total: event.total, imported: event.imported, skipped: event.skipped });
+          } else if (event.type === 'done') {
+            setResult(event);
+            onImported();
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    setUploading(false);
+  };
+
+  const pct = progress ? Math.round((progress.processed / progress.total) * 100) : 0;
+
+  return (
+    <Modal open={open} onClose={() => { if (!uploading) { onClose(); reset(); } }} title="처리내역 Import">
+      <div className="space-y-4">
+        {!uploading && !result && (
+          <>
+            <p className="text-sm" style={{ color: '#424752' }}>
+              용도코드가 매핑된 처리내역 CSV를 업로드합니다. 거래가 저장되고, 용도코드가 있는 건은 분류 확정 상태로 등록됩니다.
+            </p>
+            <p className="text-xs" style={{ color: '#727784' }}>
+              필요 컬럼: <code className="px-1.5 py-0.5 rounded-lg" style={{ backgroundColor: '#f0eded' }}>가맹점명, 공급금액, 부가세액, 승인일자</code>
+              <br />
+              선택 컬럼: <code className="px-1.5 py-0.5 rounded-lg" style={{ backgroundColor: '#f0eded' }}>용도코드, 가맹점업종코드, 가맹점업종명</code>
+            </p>
+            <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+          </>
+        )}
+
+        {uploading && progress && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span style={{ color: '#424752' }}>업로드 중...</span>
+              <span style={{ color: '#727784' }}>{progress.processed} / {progress.total}건 ({pct}%)</span>
+            </div>
+            <div className="w-full rounded-full h-2.5 overflow-hidden" style={{ backgroundColor: '#e4e2e1' }}>
+              <div className="h-2.5 rounded-full transition-all duration-200" style={{ width: `${pct}%`, background: 'linear-gradient(to right, #00408b, #0057b8)' }} />
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-center text-xs">
+              <div className="rounded-xl p-3" style={{ backgroundColor: '#dcfce7' }}>
+                <p style={{ color: '#166534' }}>등록</p>
+                <p className="text-lg font-bold" style={{ color: '#15803d' }}>{progress.imported}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ backgroundColor: '#ffdad6' }}>
+                <p style={{ color: '#ba1a1a' }}>건너뜀</p>
+                <p className="text-lg font-bold" style={{ color: '#b91c1c' }}>{progress.skipped}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {uploading && !progress && (
+          <p className="text-sm text-center py-2" style={{ color: '#424752' }}>파일 분석 중...</p>
+        )}
+
+        {result && (
+          <div className="p-4 rounded-xl text-sm space-y-1" style={{ backgroundColor: '#f6f3f2' }}>
+            {result.error ? (
+              <p style={{ color: '#ba1a1a' }}>{result.error}</p>
+            ) : (
+              <>
+                <p className="font-medium" style={{ color: '#15803d' }}>완료</p>
+                <p style={{ color: '#1b1c1c' }}>등록: <strong>{result.imported}</strong>건</p>
+                <p style={{ color: '#1b1c1c' }}>건너뜀: <strong>{result.skipped}</strong>건</p>
+                {result.errors?.length > 0 && (
+                  <ul className="mt-2 text-xs max-h-32 overflow-y-auto" style={{ color: '#ba1a1a' }}>
+                    {result.errors.slice(0, 10).map((e: any, i: number) => (
+                      <li key={i}>행 {e.row}: {e.error}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => { onClose(); reset(); }}
+            disabled={uploading}
+            className="px-4 py-2 text-sm rounded-xl font-medium disabled:opacity-50"
+            style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
+          >
+            닫기
+          </button>
+          {!result && (
+            <button
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'linear-gradient(to right, #00408b, #0057b8)' }}
+            >
+              {uploading ? '처리 중...' : '업로드'}
+            </button>
+          )}
+        </div>
       </div>
     </Modal>
   );

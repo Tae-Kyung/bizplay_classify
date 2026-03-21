@@ -33,7 +33,7 @@ export default function AccountsPage() {
 
   const categories = [...new Set(accounts.map((a) => a.category).filter(Boolean))] as string[];
 
-  if (!company) return <div className="text-gray-400">회사를 선택하세요</div>;
+  if (!company) return <div style={{ color: '#727784' }}>회사를 선택하세요</div>;
 
   return (
     <div>
@@ -44,7 +44,8 @@ export default function AccountsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setImportModalOpen(true)}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 text-sm rounded-xl font-medium transition-colors"
+              style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
             >
               CSV Import
             </button>
@@ -53,7 +54,8 @@ export default function AccountsPage() {
                 setEditingAccount(null);
                 setModalOpen(true);
               }}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(to right, #00408b, #0057b8)' }}
             >
               추가
             </button>
@@ -62,25 +64,27 @@ export default function AccountsPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-6">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="코드 또는 이름으로 검색..."
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64"
+          className="px-3 py-2 rounded-xl text-sm w-64 border-0 focus:outline-none focus:ring-2"
+          style={{ backgroundColor: '#f0eded', color: '#1b1c1c', '--tw-ring-color': '#00408b' } as React.CSSProperties}
         />
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 rounded-xl text-sm border-0 focus:outline-none"
+          style={{ backgroundColor: '#f0eded', color: '#1b1c1c' }}
         >
           <option value="">전체 분류</option>
           {categories.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm" style={{ color: '#424752' }}>
           <input
             type="checkbox"
             checked={showInactive}
@@ -91,44 +95,49 @@ export default function AccountsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-gray-500">
-              <th className="px-4 py-3">코드</th>
-              <th className="px-4 py-3">계정과목명</th>
-              <th className="px-4 py-3">분류</th>
-              <th className="px-4 py-3">상태</th>
-              <th className="px-4 py-3 text-right">작업</th>
+          <thead>
+            <tr className="text-left text-xs font-medium uppercase tracking-wide" style={{ backgroundColor: '#f6f3f2', color: '#424752' }}>
+              <th className="px-5 py-3.5">코드</th>
+              <th className="px-5 py-3.5">계정과목명</th>
+              <th className="px-5 py-3.5">분류</th>
+              <th className="px-5 py-3.5">상태</th>
+              <th className="px-5 py-3.5 text-right">작업</th>
             </tr>
           </thead>
           <tbody>
             {accounts.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={5} className="px-5 py-10 text-center text-sm" style={{ color: '#727784' }}>
                   계정과목이 없습니다. 추가하거나 CSV로 가져오세요.
                 </td>
               </tr>
             ) : (
-              accounts.map((a) => (
-                <tr key={a.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{a.code}</td>
-                  <td className="px-4 py-3">{a.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.category || '-'}</td>
-                  <td className="px-4 py-3">
+              accounts.map((a, idx) => (
+                <tr
+                  key={a.id}
+                  style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fbf9f8' }}
+                  className="transition-colors hover:brightness-[0.98]"
+                >
+                  <td className="px-5 py-3.5 font-mono text-xs" style={{ color: '#424752' }}>{a.code}</td>
+                  <td className="px-5 py-3.5 font-medium" style={{ color: '#1b1c1c' }}>{a.name}</td>
+                  <td className="px-5 py-3.5 text-sm" style={{ color: '#424752' }}>{a.category || '-'}</td>
+                  <td className="px-5 py-3.5">
                     {a.is_active ? (
-                      <span className="text-green-600 text-xs">활성</span>
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>활성</span>
                     ) : (
-                      <span className="text-gray-400 text-xs">비활성</span>
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#e4e2e1', color: '#727784' }}>비활성</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     <button
                       onClick={() => {
                         setEditingAccount(a);
                         setModalOpen(true);
                       }}
-                      className="text-blue-600 hover:underline text-xs mr-3"
+                      className="text-xs font-medium mr-3 transition-opacity hover:opacity-70"
+                      style={{ color: '#00408b' }}
                     >
                       수정
                     </button>
@@ -142,7 +151,8 @@ export default function AccountsPage() {
                           );
                           fetchAccounts();
                         }}
-                        className="text-red-500 hover:underline text-xs"
+                        className="text-xs font-medium transition-opacity hover:opacity-70"
+                        style={{ color: '#ba1a1a' }}
                       >
                         비활성화
                       </button>
@@ -160,7 +170,8 @@ export default function AccountsPage() {
                           );
                           fetchAccounts();
                         }}
-                        className="text-green-600 hover:underline text-xs"
+                        className="text-xs font-medium transition-opacity hover:opacity-70"
+                        style={{ color: '#1a7a4a' }}
                       >
                         활성화
                       </button>
@@ -173,7 +184,6 @@ export default function AccountsPage() {
         </table>
       </div>
 
-      {/* Add/Edit Modal */}
       <AccountFormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -182,7 +192,6 @@ export default function AccountsPage() {
         onSaved={fetchAccounts}
       />
 
-      {/* CSV Import Modal */}
       <CsvImportModal
         open={importModalOpen}
         onClose={() => setImportModalOpen(false)}
@@ -256,48 +265,59 @@ function AccountFormModal({
     onClose();
   };
 
+  const inputStyle = { backgroundColor: '#f0eded', color: '#1b1c1c' };
+  const labelStyle = { color: '#424752', fontSize: '0.8125rem', fontWeight: '500' };
+
   return (
     <Modal open={open} onClose={onClose} title={account ? '계정과목 수정' : '계정과목 추가'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">코드 *</label>
+          <label className="block mb-1.5" style={labelStyle}>코드 *</label>
           <input
             required
             disabled={!!account}
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
+            className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none disabled:opacity-50"
+            style={inputStyle}
             placeholder="예: 51100"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">계정과목명 *</label>
+          <label className="block mb-1.5" style={labelStyle}>계정과목명 *</label>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+            style={inputStyle}
             placeholder="예: 복리후생비"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">대분류</label>
+          <label className="block mb-1.5" style={labelStyle}>대분류</label>
           <input
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+            style={inputStyle}
             placeholder="예: 판관비"
           />
         </div>
-        {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg">
+        {error && (
+          <div className="text-sm p-3 rounded-xl" style={{ backgroundColor: '#ffdad6', color: '#ba1a1a' }}>
+            {error}
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl font-medium" style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}>
             취소
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: 'linear-gradient(to right, #00408b, #0057b8)' }}
           >
             {saving ? '저장 중...' : '저장'}
           </button>
@@ -341,8 +361,8 @@ function CsvImportModal({
   return (
     <Modal open={open} onClose={() => { onClose(); setFile(null); setResult(null); }} title="CSV Import">
       <div className="space-y-4">
-        <p className="text-sm text-gray-500">
-          CSV 파일 형식: <code className="bg-gray-100 px-1 rounded">code,name,category</code>
+        <p className="text-sm" style={{ color: '#424752' }}>
+          CSV 파일 형식: <code className="px-1.5 py-0.5 rounded-lg text-xs" style={{ backgroundColor: '#f0eded' }}>code,name,category</code> 또는 <code className="px-1.5 py-0.5 rounded-lg text-xs" style={{ backgroundColor: '#f0eded' }}>용도코드,용도명,사용여부</code>
         </p>
         <input
           type="file"
@@ -354,11 +374,11 @@ function CsvImportModal({
           className="text-sm"
         />
         {result && (
-          <div className="bg-gray-50 p-3 rounded text-sm">
-            <p>가져오기: <strong>{result.imported}</strong>건 성공</p>
-            <p>건너뜀: <strong>{result.skipped}</strong>건</p>
+          <div className="p-4 rounded-xl text-sm" style={{ backgroundColor: '#f6f3f2' }}>
+            <p style={{ color: '#1b1c1c' }}>가져오기: <strong>{result.imported}</strong>건 성공</p>
+            <p style={{ color: '#1b1c1c' }}>건너뜀: <strong>{result.skipped}</strong>건</p>
             {result.errors?.length > 0 && (
-              <ul className="mt-2 text-red-600 text-xs">
+              <ul className="mt-2 text-xs" style={{ color: '#ba1a1a' }}>
                 {result.errors.slice(0, 5).map((e: any, i: number) => (
                   <li key={i}>행 {e.row}: {e.error}</li>
                 ))}
@@ -367,13 +387,14 @@ function CsvImportModal({
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button onClick={() => { onClose(); setFile(null); setResult(null); }} className="px-4 py-2 text-sm border rounded-lg">
+          <button onClick={() => { onClose(); setFile(null); setResult(null); }} className="px-4 py-2 text-sm rounded-xl font-medium" style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}>
             닫기
           </button>
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: 'linear-gradient(to right, #00408b, #0057b8)' }}
           >
             {uploading ? '업로드 중...' : '가져오기'}
           </button>

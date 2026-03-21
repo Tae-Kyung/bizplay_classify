@@ -33,7 +33,6 @@ export default function ClassifyPage() {
       .then((r) => r.json())
       .then((d) => setAccounts(Array.isArray(d) ? d : []));
 
-    // 설정에서 현재 모델명 가져오기
     fetch(`/api/companies/${company.id}/settings/prompts`)
       .then((r) => r.json())
       .then((d) => {
@@ -92,39 +91,44 @@ export default function ClassifyPage() {
     setConfirming(false);
   };
 
-  if (!company) return <div className="text-gray-400">회사를 선택하세요</div>;
+  if (!company) return <div style={{ color: '#727784' }}>회사를 선택하세요</div>;
+
+  const inputStyle = { backgroundColor: '#f0eded', color: '#1b1c1c' };
+  const labelStyle = { color: '#424752', fontSize: '0.8125rem', fontWeight: '500' };
 
   return (
     <div className="max-w-3xl">
       <Header title="거래 분류" description="거래 정보를 입력하고 계정과목을 자동 분류합니다" />
 
       {currentModelName && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
+        <div className="mb-5 flex items-center gap-2 text-sm" style={{ color: '#424752' }}>
           <span>사용 모델:</span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#f3e8ff', color: '#7e22ce' }}>
             {currentModelName}
           </span>
         </div>
       )}
 
-      <form onSubmit={handleClassify} className="bg-white rounded-xl shadow p-6 space-y-4">
+      <form onSubmit={handleClassify} className="rounded-2xl p-6 space-y-4" style={{ backgroundColor: '#ffffff' }}>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">가맹점명 *</label>
+            <label className="block mb-1.5" style={labelStyle}>가맹점명 *</label>
             <input
               required
               value={merchantName}
               onChange={(e) => setMerchantName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+              style={inputStyle}
               placeholder="예: 스타벅스 강남점"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">업종코드 (MCC)</label>
+            <label className="block mb-1.5" style={labelStyle}>업종코드 (MCC)</label>
             <input
               value={mccCode}
               onChange={(e) => setMccCode(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+              style={inputStyle}
               placeholder="예: 5814"
             />
           </div>
@@ -132,32 +136,35 @@ export default function ClassifyPage() {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">금액 *</label>
+            <label className="block mb-1.5" style={labelStyle}>금액 *</label>
             <input
               required
               type="number"
               min="1"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+              style={inputStyle}
               placeholder="15000"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">거래일자</label>
+            <label className="block mb-1.5" style={labelStyle}>거래일자</label>
             <input
               type="date"
               value={txDate}
               onChange={(e) => setTxDate(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+              style={inputStyle}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">카드 구분</label>
+            <label className="block mb-1.5" style={labelStyle}>카드 구분</label>
             <select
               value={cardType}
               onChange={(e) => setCardType(e.target.value as 'corporate' | 'personal')}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+              style={inputStyle}
             >
               <option value="corporate">법인</option>
               <option value="personal">개인</option>
@@ -166,17 +173,18 @@ export default function ClassifyPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">적요/메모</label>
+          <label className="block mb-1.5" style={labelStyle}>적요/메모</label>
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2.5 rounded-xl text-sm border-0 focus:outline-none"
+            style={inputStyle}
             placeholder="예: 팀 회의 커피"
           />
         </div>
 
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm" style={{ color: '#424752' }}>
             <input
               type="checkbox"
               checked={saveTransaction}
@@ -186,12 +194,17 @@ export default function ClassifyPage() {
           </label>
         </div>
 
-        {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+        {error && (
+          <div className="text-sm p-3 rounded-xl" style={{ backgroundColor: '#ffdad6', color: '#ba1a1a' }}>
+            {error}
+          </div>
+        )}
 
         <button
           type="submit"
           disabled={classifying}
-          className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="w-full py-2.5 text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+          style={{ background: 'linear-gradient(to right, #00408b, #0057b8)' }}
         >
           {classifying ? '분류 중...' : '분류하기'}
         </button>
@@ -199,54 +212,56 @@ export default function ClassifyPage() {
 
       {/* Result */}
       {result && (
-        <div className="mt-6 bg-white rounded-xl shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">분류 결과</h3>
+        <div className="mt-6 rounded-2xl p-6" style={{ backgroundColor: '#ffffff' }}>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: '#1b1c1c', fontFamily: 'var(--font-plus-jakarta-sans, sans-serif)' }}>분류 결과</h3>
 
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-24">계정과목</span>
-              <span className="font-medium">
-                <span className="font-mono text-sm text-gray-500 mr-2">
+              <span className="text-xs w-24" style={{ color: '#424752' }}>계정과목</span>
+              <span className="font-medium text-sm" style={{ color: '#1b1c1c' }}>
+                <span className="font-mono text-xs mr-2" style={{ color: '#727784' }}>
                   {result.account.code}
                 </span>
                 {result.account.name}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-24">신뢰도</span>
+              <span className="text-xs w-24" style={{ color: '#424752' }}>신뢰도</span>
               <ConfidenceBadge confidence={result.confidence} />
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 w-24">분류 방법</span>
+              <span className="text-xs w-24" style={{ color: '#424752' }}>분류 방법</span>
               <MethodTag method={result.method} />
             </div>
             <div>
-              <span className="text-sm text-gray-500">사유</span>
-              <p className="mt-1 text-sm bg-gray-50 p-3 rounded-lg">{result.reason}</p>
+              <span className="text-xs" style={{ color: '#424752' }}>사유</span>
+              <p className="mt-1.5 text-sm p-3 rounded-xl" style={{ backgroundColor: '#f6f3f2', color: '#1b1c1c' }}>{result.reason}</p>
             </div>
           </div>
 
           {result.id && !result.is_confirmed && (
-            <div className="mt-4 pt-4 border-t space-y-3">
+            <div className="mt-4 pt-4 space-y-3" style={{ borderTop: '1px solid #f0eded' }}>
               {!showEdit ? (
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleConfirm()}
                     disabled={confirming}
-                    className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#15803d' }}
                   >
                     {confirming ? '확정 중...' : '확정 (추천 수락)'}
                   </button>
                   <button
                     onClick={() => setShowEdit(true)}
-                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-sm rounded-xl font-medium"
+                    style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
                   >
                     수정
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className="text-sm font-medium" style={{ color: '#1b1c1c' }}>
                     다른 계정과목 선택:
                   </label>
                   <AccountSelect
@@ -258,13 +273,15 @@ export default function ClassifyPage() {
                     <button
                       onClick={() => handleConfirm(editAccountId)}
                       disabled={!editAccountId || confirming}
-                      className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      className="px-4 py-2 text-sm text-white rounded-xl font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: '#15803d' }}
                     >
                       수정 확정
                     </button>
                     <button
                       onClick={() => setShowEdit(false)}
-                      className="px-4 py-2 text-sm border rounded-lg"
+                      className="px-4 py-2 text-sm rounded-xl font-medium"
+                      style={{ backgroundColor: '#e4e2e1', color: '#1b1c1c' }}
                     >
                       취소
                     </button>
@@ -275,8 +292,8 @@ export default function ClassifyPage() {
           )}
 
           {result.is_confirmed && (
-            <div className="mt-4 pt-4 border-t">
-              <span className="text-sm text-green-600 font-medium">확정 완료</span>
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid #f0eded' }}>
+              <span className="text-sm font-medium" style={{ color: '#15803d' }}>확정 완료</span>
             </div>
           )}
         </div>

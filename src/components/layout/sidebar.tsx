@@ -61,13 +61,16 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col min-h-screen">
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-lg font-bold">Bizplay Classify</h1>
+    <aside className="w-64 flex flex-col min-h-screen" style={{ backgroundColor: '#00408b' }}>
+      <div className="p-5 pb-4">
+        <h1 className="text-base font-semibold text-white tracking-tight" style={{ fontFamily: 'var(--font-plus-jakarta-sans, sans-serif)' }}>
+          Bizplay Classify
+        </h1>
         {companies.length > 0 && (
-          <div className="mt-2 flex gap-1">
+          <div className="mt-3 flex gap-1.5">
             <select
-              className="flex-1 bg-white text-gray-900 text-sm rounded px-2 py-1 border border-gray-400"
+              className="flex-1 text-sm rounded-lg px-2.5 py-1.5 border-0 focus:outline-none"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
               value={company?.id || ''}
               onChange={(e) => {
                 const c = companies.find((c) => c.id === e.target.value);
@@ -75,14 +78,15 @@ export function Sidebar() {
               }}
             >
               {companies.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={c.id} value={c.id} style={{ backgroundColor: '#00408b', color: '#ffffff' }}>
                   {c.name}
                 </option>
               ))}
             </select>
             <button
               onClick={() => setShowCreate(!showCreate)}
-              className="px-2 py-1 bg-gray-700 text-gray-300 rounded border border-gray-600 hover:bg-gray-600 text-sm"
+              className="px-2.5 py-1.5 text-sm font-medium text-white rounded-lg transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
               title="새 회사 추가"
             >
               +
@@ -96,29 +100,33 @@ export function Sidebar() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="회사명"
-              className="w-full bg-white text-gray-900 text-sm rounded px-2 py-1.5 border border-gray-400 placeholder-gray-400"
+              className="w-full text-sm rounded-lg px-2.5 py-1.5 border-0 focus:outline-none placeholder-white/50"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
             />
             <input
               value={newBizNum}
               onChange={(e) => setNewBizNum(e.target.value)}
               placeholder="사업자번호 (선택)"
-              className="w-full bg-white text-gray-900 text-sm rounded px-2 py-1.5 border border-gray-400 placeholder-gray-400"
+              className="w-full text-sm rounded-lg px-2.5 py-1.5 border-0 focus:outline-none placeholder-white/50"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
             />
             {createError && (
-              <p className="text-xs text-red-400">{createError}</p>
+              <p className="text-xs text-red-300">{createError}</p>
             )}
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               <button
                 type="submit"
                 disabled={creating}
-                className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 px-2.5 py-1.5 text-xs font-medium text-white rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
               >
                 {creating ? '생성 중...' : '생성'}
               </button>
               <button
                 type="button"
                 onClick={() => { setShowCreate(false); setCreateError(''); }}
-                className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded hover:bg-gray-600"
+                className="px-2.5 py-1.5 text-xs text-white/70 rounded-lg transition-colors"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
               >
                 취소
               </button>
@@ -127,7 +135,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 px-3 pb-3 space-y-0.5">
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/');
@@ -135,23 +143,36 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  ? 'text-white font-medium'
+                  : 'text-white/70 hover:text-white'
               }`}
+              style={isActive ? { backgroundColor: 'rgba(255,255,255,0.2)' } : {}}
+              onMouseEnter={(e) => {
+                if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = '';
+              }}
             >
-              <span>{item.icon}</span>
+              <span className="text-base">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-3 pt-2">
         <button
           onClick={handleLogout}
-          className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+          className="w-full text-left px-3 py-2.5 text-sm text-white/60 hover:text-white rounded-xl transition-colors"
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.1)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = '';
+          }}
         >
           로그아웃
         </button>

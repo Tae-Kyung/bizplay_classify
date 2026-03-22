@@ -1,6 +1,7 @@
 import { anthropic } from '@/lib/claude/client';
 import { getModelConfig, resolveModelConfig, DEFAULT_MODEL_ID } from '@/lib/models/config';
 import { buildPrompts } from './prompt-templates';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT } from './prompt-defaults';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Account, TransactionInput, ClassifyResult } from '@/types';
 
@@ -22,7 +23,12 @@ export async function getCompanyPrompts(companyId: string) {
     .single();
 
   if (!data) {
-    throw new Error('프롬프트 설정을 찾을 수 없습니다. 회사 설정을 확인하세요.');
+    return {
+      system_prompt: DEFAULT_SYSTEM_PROMPT,
+      user_prompt: DEFAULT_USER_PROMPT,
+      default_model_id: DEFAULT_MODEL_ID,
+      temperature: 0,
+    };
   }
   return data;
 }

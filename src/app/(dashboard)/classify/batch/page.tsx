@@ -65,8 +65,9 @@ export default function BatchClassifyPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || '처리에 실패했습니다');
+        let msg = '처리에 실패했습니다';
+        try { const data = await res.json(); msg = data.error || msg; } catch { /* ignore */ }
+        setError(msg);
         setProcessing(false);
         return;
       }
@@ -112,8 +113,8 @@ export default function BatchClassifyPage() {
           }
         }
       }
-    } catch {
-      setError('네트워크 오류');
+    } catch (err: any) {
+      setError(err?.message?.includes('fetch') ? '서버 연결 실패 (타임아웃 또는 네트워크 오류)' : '네트워크 오류');
     }
     setProcessing(false);
   };

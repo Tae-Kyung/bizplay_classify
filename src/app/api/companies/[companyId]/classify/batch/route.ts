@@ -5,6 +5,8 @@ import { classifyWithAI, getCompanyPrompts } from '@/lib/classify/ai-classifier'
 import Papa from 'papaparse';
 import { z } from 'zod';
 
+export const maxDuration = 300;
+
 const rowSchema = z.object({
   merchant_name: z.string().min(1),
   mcc_code: z.string().optional().default(''),

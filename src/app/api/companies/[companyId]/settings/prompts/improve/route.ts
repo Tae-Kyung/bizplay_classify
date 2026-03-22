@@ -131,11 +131,19 @@ ${exampleLines.join('\n')}
       if (!modelConfig.apiUrl || !modelConfig.apiKey) {
         return NextResponse.json({ error: 'EXAONE API 설정이 없습니다. Vercel 환경변수를 확인하세요.' }, { status: 400 });
       }
-      const res = await fetch(modelConfig.apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', [modelConfig.apiKeyHeader || 'x-api-key']: modelConfig.apiKey },
-        body: JSON.stringify({ stream: false, temperature: 0, messages: [{ role: 'user', content: metaPrompt }] }),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+      let res: Response;
+      try {
+        res = await fetch(modelConfig.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', [modelConfig.apiKeyHeader || 'x-api-key']: modelConfig.apiKey },
+          body: JSON.stringify({ stream: false, temperature: 0, messages: [{ role: 'user', content: metaPrompt }] }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!res.ok) throw new Error(`API 호출 실패 (${res.status}): ${await res.text()}`);
       const data = await res.json();
       responseText = data.choices?.[0]?.message?.content;

@@ -124,7 +124,7 @@ export async function classifyWithAI(
     responseText = await callAnthropic(
       systemPrompt,
       userPrompt,
-      modelConfig.modelId || 'claude-sonnet-4-20250514',
+      modelConfig.modelId || 'claude-sonnet-4-5',
       temperature
     );
   } else {

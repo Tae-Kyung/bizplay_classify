@@ -13,10 +13,10 @@ export interface ModelConfig {
 export const AI_MODELS: ModelConfig[] = [
   {
     id: 'claude-sonnet',
-    name: 'Claude Sonnet 4',
+    name: 'Claude Sonnet 4.5',
     provider: 'anthropic',
     description: 'Anthropic Claude Sonnet - 높은 정확도',
-    modelId: 'claude-sonnet-4-20250514',
+    modelId: 'claude-sonnet-4-5',
   },
   {
     id: 'exaone-35-7-8b',

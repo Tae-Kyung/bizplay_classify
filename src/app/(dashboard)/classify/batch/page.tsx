@@ -55,64 +55,83 @@ export default function BatchClassifyPage() {
     setResult(null);
     setProgress(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
+    // CSV 전체 파싱
+    const text = await file.text();
+    const { data: allRows, meta } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+    const headers = meta.fields || [];
+    const total = allRows.length;
+
+    // 20행씩 청크로 분할하여 순차 전송 (Vercel Hobby 10초 제한 대응)
+    const CHUNK_SIZE = 20;
+    const acc = { success: 0, failed: 0, rule_classified: 0, ai_classified: 0, errors: [] as { row: number; error: string }[] };
 
     try {
-      const res = await fetch(`/api/companies/${company.id}/classify/batch`, {
-        method: 'POST',
-        body: formData,
-      });
+      for (let start = 0; start < allRows.length; start += CHUNK_SIZE) {
+        const chunkRows = allRows.slice(start, start + CHUNK_SIZE);
 
-      if (!res.ok) {
-        let msg = '처리에 실패했습니다';
-        try { const data = await res.json(); msg = data.error || msg; } catch { /* ignore */ }
-        setError(msg);
-        setProcessing(false);
-        return;
-      }
+        // 청크를 CSV 문자열로 재구성
+        const csvLines = [
+          headers.join(','),
+          ...chunkRows.map(row => headers.map(h => {
+            const v = row[h] ?? '';
+            return v.includes(',') ? `"${v}"` : v;
+          }).join(',')),
+        ];
+        const chunkFile = new File([csvLines.join('\n')], 'chunk.csv', { type: 'text/csv' });
+        const formData = new FormData();
+        formData.append('file', chunkFile);
 
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+        const res = await fetch(`/api/companies/${company.id}/classify/batch`, {
+          method: 'POST',
+          body: formData,
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        if (!res.ok) {
+          let msg = '처리에 실패했습니다';
+          try { const data = await res.json(); msg = data.error || msg; } catch { /* ignore */ }
+          setError(msg);
+          setProcessing(false);
+          return;
+        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() ?? '';
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        for (const chunk of lines) {
-          const line = chunk.replace(/^data: /, '').trim();
-          if (!line) continue;
-          try {
-            const event = JSON.parse(line);
-            if (event.type === 'progress') {
-              setProgress({
-                processed: event.processed,
-                total: event.total,
-                success: event.success,
-                failed: event.failed,
-                rule_classified: event.rule_classified,
-                ai_classified: event.ai_classified,
-              });
-            } else if (event.type === 'done') {
-              setResult({
-                total: event.total,
-                success: event.success,
-                failed: event.failed,
-                rule_classified: event.rule_classified,
-                ai_classified: event.ai_classified,
-                errors: event.errors,
-              });
-            }
-          } catch {
-            // ignore parse errors
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() ?? '';
+
+          for (const chunk of lines) {
+            const line = chunk.replace(/^data: /, '').trim();
+            if (!line) continue;
+            try {
+              const event = JSON.parse(line);
+              if (event.type === 'progress') {
+                setProgress({
+                  processed: start + event.processed,
+                  total,
+                  success: acc.success + event.success,
+                  failed: acc.failed + event.failed,
+                  rule_classified: acc.rule_classified + event.rule_classified,
+                  ai_classified: acc.ai_classified + event.ai_classified,
+                });
+              } else if (event.type === 'done') {
+                acc.success += event.success;
+                acc.failed += event.failed;
+                acc.rule_classified += event.rule_classified;
+                acc.ai_classified += event.ai_classified;
+                acc.errors.push(...(event.errors || []).map((e: { row: number; error: string }) => ({ row: start + e.row, error: e.error })));
+              }
+            } catch { /* ignore parse errors */ }
           }
         }
       }
+
+      setResult({ total, ...acc });
     } catch (err: any) {
       setError(err?.message?.includes('fetch') ? '서버 연결 실패 (타임아웃 또는 네트워크 오류)' : '네트워크 오류');
     }

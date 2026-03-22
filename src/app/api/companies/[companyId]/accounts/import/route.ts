@@ -9,6 +9,8 @@ const rowSchema = z.object({
   category: z.string().optional(),
 });
 
+const BATCH = 100;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
@@ -21,34 +23,28 @@ export async function POST(
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
-
-  if (!file) {
-    return NextResponse.json({ error: 'CSV 파일을 업로드하세요' }, { status: 400 });
-  }
+  if (!file) return NextResponse.json({ error: 'CSV 파일을 업로드하세요' }, { status: 400 });
 
   const text = (await file.text()).replace(/^\uFEFF/, '');
-  const { data: rows, errors } = Papa.parse(text, {
-    header: true,
-    skipEmptyLines: true,
-  });
-
-  if (errors.length > 0) {
+  const { data: rows, errors } = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (errors.length > 0)
     return NextResponse.json({ error: 'CSV 파싱 오류', details: errors }, { status: 400 });
-  }
 
   const results = { imported: 0, skipped: 0, errors: [] as { row: number; error: string }[] };
 
+  // 유효 행 수집
+  const toUpsert: Record<string, unknown>[] = [];
   for (let i = 0; i < rows.length; i++) {
     const raw = rows[i] as Record<string, string>;
-    // 한국어 컬럼명 매핑 지원 (용도코드→code, 용도명→name, 사용여부→is_active)
     const normalized: Record<string, unknown> = {
       code: raw['code'] ?? raw['용도코드'],
       name: raw['name'] ?? raw['용도명'],
       category: raw['category'] ?? raw['분류'] ?? undefined,
     };
+
     const isActive = raw['사용여부'];
     if (isActive !== undefined) {
-      (normalized as Record<string, unknown>)['is_active'] = isActive.trim().toUpperCase() === 'Y';
+      normalized['is_active'] = isActive.trim().toUpperCase() === 'Y';
     }
 
     const parsed = rowSchema.safeParse(normalized);
@@ -60,21 +56,20 @@ export async function POST(
 
     const insertData: Record<string, unknown> = { ...parsed.data, company_id: companyId };
     if ('is_active' in normalized) insertData['is_active'] = normalized['is_active'];
+    toUpsert.push(insertData);
+  }
 
+  // 배치 upsert (중복 code는 name/category/is_active 업데이트)
+  for (let i = 0; i < toUpsert.length; i += BATCH) {
+    const chunk = toUpsert.slice(i, i + BATCH);
     const { error } = await client
       .from('accounts')
-      .insert(insertData);
-
+      .upsert(chunk, { onConflict: 'company_id,code' });
     if (error) {
-      if (error.code === '23505') {
-        results.skipped++;
-        results.errors.push({ row: i + 1, error: `중복 코드: ${parsed.data.code}` });
-      } else {
-        results.errors.push({ row: i + 1, error: error.message });
-        results.skipped++;
-      }
+      results.skipped += chunk.length;
+      results.errors.push({ row: i + 1, error: error.message });
     } else {
-      results.imported++;
+      results.imported += chunk.length;
     }
   }
 

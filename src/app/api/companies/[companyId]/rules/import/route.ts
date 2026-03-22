@@ -140,27 +140,31 @@ export async function POST(
         const { data: newTxs, error: txError } = await client
           .from('transactions')
           .insert(chunk.map((r) => r.txData))
-          .select('id');
+          .select('id, merchant_name, amount');
 
         if (txError || !newTxs) {
           txResults.skipped += chunk.length;
         } else {
           txResults.imported += newTxs.length;
 
-          // classification_results 배치 준비 (용도코드 있는 건만)
+          // merchant_name+amount 기준으로 ID 역매핑 (순서 의존 제거)
+          const txMap = new Map(newTxs.map((t) => [`${t.merchant_name}|${t.amount}`, t.id]));
+
           const classResults: object[] = [];
-          for (let j = 0; j < chunk.length; j++) {
-            const account = chunk[j].accountCode ? codeToAccount.get(chunk[j].accountCode!) : null;
-            if (account && newTxs[j]) {
-              classResults.push({
-                transaction_id: newTxs[j].id,
-                account_id: account.id,
-                confidence: 1.0,
-                reason: `처리내역 import: ${account.code} ${account.name}`,
-                method: 'rule',
-                is_confirmed: true,
-              });
-            }
+          for (const row of chunk) {
+            const account = row.accountCode ? codeToAccount.get(row.accountCode) : null;
+            if (!account) continue;
+            const txData = row.txData as { merchant_name: string; amount: number };
+            const txId = txMap.get(`${txData.merchant_name}|${txData.amount}`);
+            if (!txId) continue;
+            classResults.push({
+              transaction_id: txId,
+              account_id: account.id,
+              confidence: 1.0,
+              reason: `처리내역 import: ${account.code} ${account.name}`,
+              method: 'rule',
+              is_confirmed: true,
+            });
           }
 
           if (classResults.length > 0)

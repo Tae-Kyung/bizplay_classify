@@ -3,6 +3,8 @@ import {
   getAuthenticatedClient,
   verifyCompanyAdmin,
 } from '@/lib/supabase/api-client';
+import { getCompanyPrompts } from '@/lib/classify/ai-classifier';
+import { getModelConfig, resolveModelConfig, DEFAULT_MODEL_ID } from '@/lib/models/config';
 import { anthropic } from '@/lib/claude/client';
 import { z } from 'zod';
 
@@ -24,16 +26,16 @@ export async function POST(
   const parsed = requestSchema.safeParse(body);
   const limit = parsed.success ? parsed.data.limit : 100;
 
-  // 1. 현재 시스템 프롬프트 조회
-  const { data: settings } = await client
-    .from('company_prompt_settings')
-    .select('system_prompt')
-    .eq('company_id', companyId)
-    .single();
+  // 1. 현재 시스템 프롬프트 + 모델 설정 조회
+  const companyPrompts = await getCompanyPrompts(companyId);
+  const settings = { system_prompt: companyPrompts.system_prompt };
 
-  if (!settings) {
-    return NextResponse.json({ error: '프롬프트 설정을 찾을 수 없습니다' }, { status: 404 });
+  const modelId = companyPrompts.default_model_id || DEFAULT_MODEL_ID;
+  const baseConfig = getModelConfig(modelId);
+  if (!baseConfig) {
+    return NextResponse.json({ error: `알 수 없는 모델: ${modelId}` }, { status: 400 });
   }
+  const modelConfig = resolveModelConfig(baseConfig);
 
   // 2. 확정된 분류 결과 조회
   const { data: confirmed } = await client
@@ -113,25 +115,40 @@ ${exampleLines.join('\n')}
 {"suggested_prompt": "개선된 시스템 프롬프트 전문", "reasoning": "주요 변경 사항 요약 (한국어, 3-5줄)"}`;
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 4096,
-      temperature: 0,
-      messages: [{ role: 'user', content: metaPrompt }],
-    });
+    let responseText: string;
 
-    const content = message.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type');
+    if (modelConfig.provider === 'anthropic') {
+      const message = await anthropic.messages.create({
+        model: modelConfig.modelId || 'claude-sonnet-4-5',
+        max_tokens: 4096,
+        temperature: 0,
+        messages: [{ role: 'user', content: metaPrompt }],
+      });
+      const content = message.content[0];
+      if (content.type !== 'text') throw new Error('Unexpected response type');
+      responseText = content.text;
+    } else {
+      if (!modelConfig.apiUrl || !modelConfig.apiKey) {
+        return NextResponse.json({ error: 'EXAONE API 설정이 없습니다. Vercel 환경변수를 확인하세요.' }, { status: 400 });
+      }
+      const res = await fetch(modelConfig.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', [modelConfig.apiKeyHeader || 'x-api-key']: modelConfig.apiKey },
+        body: JSON.stringify({ stream: false, temperature: 0, messages: [{ role: 'user', content: metaPrompt }] }),
+      });
+      if (!res.ok) throw new Error(`API 호출 실패 (${res.status}): ${await res.text()}`);
+      const data = await res.json();
+      responseText = data.choices?.[0]?.message?.content;
+      if (!responseText) throw new Error('API 응답에서 텍스트를 찾을 수 없습니다');
     }
 
     let result: { suggested_prompt: string; reasoning: string };
     try {
-      const codeBlockMatch = content.text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+      const codeBlockMatch = responseText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
       if (codeBlockMatch) {
         result = JSON.parse(codeBlockMatch[1]);
       } else {
-        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error('No JSON found');
         result = JSON.parse(jsonMatch[0]);
       }

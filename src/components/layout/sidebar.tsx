@@ -25,6 +25,26 @@ export function Sidebar() {
   const [newBizNum, setNewBizNum] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteCompany = async () => {
+    if (!company) return;
+    if (!confirm(`"${company.name}" 회사를 삭제하시겠습니까?\n모든 데이터(계정과목, 분류룰, 거래내역)가 함께 삭제됩니다.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/companies/${company.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || '삭제 중 오류가 발생했습니다.');
+        return;
+      }
+      await refetch();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -67,9 +87,9 @@ export function Sidebar() {
           Bizplay Classify
         </h1>
         {companies.length > 0 && (
-          <div className="mt-3 flex gap-1.5">
+          <div className="mt-3 space-y-1.5">
             <select
-              className="flex-1 text-sm rounded-lg px-2.5 py-1.5 border-0 focus:outline-none"
+              className="w-full text-sm rounded-lg px-2.5 py-1.5 border-0 focus:outline-none"
               style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
               value={company?.id || ''}
               onChange={(e) => {
@@ -83,14 +103,25 @@ export function Sidebar() {
                 </option>
               ))}
             </select>
-            <button
-              onClick={() => setShowCreate(!showCreate)}
-              className="px-2.5 py-1.5 text-sm font-medium text-white rounded-lg transition-colors"
-              style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-              title="새 회사 추가"
-            >
-              +
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setShowCreate(!showCreate)}
+                className="flex-1 px-2.5 py-1.5 text-xs font-medium text-white rounded-lg transition-colors"
+                style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                title="새 회사 추가"
+              >
+                + 회사 추가
+              </button>
+              <button
+                onClick={handleDeleteCompany}
+                disabled={deleting}
+                className="flex-1 px-2.5 py-1.5 text-xs font-medium text-white rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'rgba(220,50,50,0.6)' }}
+                title="현재 회사 삭제"
+              >
+                {deleting ? '삭제 중...' : '🗑 삭제'}
+              </button>
+            </div>
           </div>
         )}
         {showCreate && (
